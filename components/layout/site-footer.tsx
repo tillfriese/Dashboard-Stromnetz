@@ -11,7 +11,7 @@ const SOURCES = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-16 border-t border-slate-200/60 bg-white">
+    <footer className="mt-16 border-t border-slate-200/60 bg-surface">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-8 text-sm text-slate-500 sm:px-8 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="section-label mb-2">Quellen</p>

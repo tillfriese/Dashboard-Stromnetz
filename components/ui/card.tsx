@@ -1,8 +1,19 @@
 import type { ReactNode } from "react";
 
-export function Card({ children, className = "", labelledBy }: { children: ReactNode; className?: string; labelledBy?: string }) {
+export function Card({
+  children,
+  className = "",
+  labelledBy,
+  compact = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  labelledBy?: string;
+  /** Smaller padding for the dense side column of the "Aktuell" page. */
+  compact?: boolean;
+}) {
   return (
-    <section className={`card p-6 sm:p-7 ${className}`} aria-labelledby={labelledBy}>
+    <section className={`card ${compact ? "p-5" : "p-6 sm:p-7"} ${className}`} aria-labelledby={labelledBy}>
       {children}
     </section>
   );

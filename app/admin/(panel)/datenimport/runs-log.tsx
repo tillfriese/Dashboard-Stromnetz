@@ -15,7 +15,7 @@ type Run = {
   error: string | null;
 };
 
-const selectClass = "rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm";
+const selectClass = "rounded-xl border border-slate-200 bg-surface px-3 py-1.5 text-sm";
 
 export function RunsLog() {
   const [source, setSource] = useState("");

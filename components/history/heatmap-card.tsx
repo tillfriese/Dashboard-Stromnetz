@@ -35,6 +35,17 @@ function monthTicks(year: number) {
   return m;
 }
 
+/** Date range of each 7-day block from Jan 1, e.g. "08.01.–14.01." (last block: rest of the year). */
+function weekLabels(year: number): string[] {
+  const fmt = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.`;
+  const yearEnd = Date.UTC(year, 11, 31);
+  return Array.from({ length: 53 }, (_, w) => {
+    const from = Date.UTC(year, 0, 1 + w * 7);
+    const to = Math.min(Date.UTC(year, 0, 7 + w * 7), yearEnd);
+    return `${fmt(new Date(from))}–${fmt(new Date(to))}`;
+  });
+}
+
 function colorFor(metric: HeatMetric, max: number, min: number): (v: number) => string {
   const amber = scaleLinear<string>().domain([0, Math.max(1, max)]).range(["#fef3c7", "#b45309"]).clamp(true);
   const indigo = scaleLinear<string>().domain([0, Math.max(1, max)]).range(["#eef2ff", "#4338ca"]).clamp(true);
@@ -68,7 +79,7 @@ export function HeatmapCard({ query: q, publicMode, update }: { query: HistoryQu
             <label htmlFor="heat-metric" className="text-slate-500">
               Größe
             </label>
-            <select id="heat-metric" value={metric} onChange={(e) => update({ heat: e.target.value as HeatMetric })} className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
+            <select id="heat-metric" value={metric} onChange={(e) => update({ heat: e.target.value as HeatMetric })} className="rounded-xl border border-slate-200 bg-surface px-2.5 py-1.5">
               {HEAT_METRICS.filter((m) => !(publicMode && m === "price")).map((m) => (
                 <option key={m} value={m}>
                   {LABEL[m]}
@@ -78,7 +89,7 @@ export function HeatmapCard({ query: q, publicMode, update }: { query: HistoryQu
             <label htmlFor="heat-year" className="sr-only">
               Jahr
             </label>
-            <select id="heat-year" value={year} onChange={(e) => update({ heatYear: Number(e.target.value) })} className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 tabular-nums">
+            <select id="heat-year" value={year} onChange={(e) => update({ heatYear: Number(e.target.value) })} className="rounded-xl border border-slate-200 bg-surface px-2.5 py-1.5 tabular-nums">
               {[...new Set([...years, year])].sort().map((y) => (
                 <option key={y} value={y}>
                   {y}
@@ -99,8 +110,8 @@ export function HeatmapCard({ query: q, publicMode, update }: { query: HistoryQu
           <>
             <Heatmap
               values={data.values}
-              rowLabels={Array.from({ length: 24 }, (_, h) => `${h} Uhr`)}
-              colLabels={Array.from({ length: 53 }, (_, w) => `KW-Block ${w + 1}`)}
+              rowLabels={Array.from({ length: 24 }, (_, h) => `${h}–${h + 1} Uhr`)}
+              colLabels={weekLabels(year)}
               colTicks={monthTicks(year)}
               rowTickEvery={6}
               color={colorFor(metric, data.max ?? 1, data.min ?? 0)}

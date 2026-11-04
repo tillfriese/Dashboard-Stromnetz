@@ -40,6 +40,24 @@ test.describe("Seite „Historie“", () => {
     await expect(page.getByRole("radiogroup", { name: "Diagrammtyp" }).getByRole("radio", { name: "Linien" })).toHaveAttribute("aria-checked", "true");
   });
 
+  test("zu feine Auflösungen sind ausgegraut und nicht auswählbar", async ({ page }) => {
+    await page.goto("/historie?from=2015-01-01&to=2015-12-31");
+    const group = page.getByRole("radiogroup", { name: "Auflösung" });
+    // 1 year: 15 min (35,040 points) and hour (8,760) exceed 5,000, day (365) does not.
+    await expect(group.getByRole("radio", { name: "15 min" })).toBeDisabled();
+    await expect(group.getByRole("radio", { name: "Stunde" })).toBeDisabled();
+    await expect(group.getByRole("radio", { name: "Tag" })).toBeEnabled();
+    await group.getByRole("radio", { name: "Stunde" }).click({ force: true });
+    await expect(page).not.toHaveURL(/res=hour/);
+    await expect(page.getByText(/Ausgegraute Auflösungen ergäben mehr als ca\. 5\.000 Punkte/)).toBeVisible();
+
+    // 30 days: every resolution is allowed (15 min = 2,880 points).
+    await page.goto("/historie?from=2015-01-01&to=2015-01-30");
+    await expect(group.getByRole("radio", { name: "15 min" })).toBeEnabled();
+    await group.getByRole("radio", { name: "15 min" }).click();
+    await expect(page).toHaveURL(/res=15min/);
+  });
+
   test("Zurücksetzen und Schnellwahl", async ({ page }) => {
     await page.goto("/historie?from=2015-01-01&to=2015-12-31&res=month");
     await page.getByRole("button", { name: "Zurücksetzen" }).click();

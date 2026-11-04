@@ -6,7 +6,7 @@ import freq from "./__fixtures__/ec_frequency.json";
 import price from "./__fixtures__/ec_price_dst-spring.json";
 import states from "./__fixtures__/stromgedacht_states.json";
 import { berlinDateToMs } from "@/lib/time";
-import { NET_IMPORT_KEY, parseFlows, parseFrequency, parsePrices, PRICE_KEY } from "./energy-charts";
+import { NET_IMPORT_KEY, parseFlows, parseFrequency, parsePrices, PRICE_KEY, priceZones } from "./energy-charts";
 import { parseEntsoeFlows } from "./entsoe";
 import { parseStates, STROMGEDACHT_KEY } from "./stromgedacht";
 
@@ -44,6 +44,17 @@ describe("Energy-Charts", () => {
 
   it("rejects unexpected formats", () => {
     expect(() => parsePrices({ foo: "bar" })).toThrow(/unexpected format/);
+  });
+
+  it("uses bidding zone DE-AT-LU before the split on 1 Oct 2018, DE-LU afterwards", () => {
+    const sep = Date.parse("2018-09-01T00:00:00Z");
+    const nov = Date.parse("2018-11-01T00:00:00Z");
+    expect(priceZones(sep, nov)).toEqual([
+      { bzn: "DE-AT-LU", from: sep, to: Date.parse("2018-09-30T22:00:00Z") },
+      { bzn: "DE-LU", from: Date.parse("2018-09-30T22:00:00Z"), to: nov },
+    ]);
+    expect(priceZones(Date.parse("2015-01-01T00:00:00Z"), Date.parse("2015-02-01T00:00:00Z")).map((z) => z.bzn)).toEqual(["DE-AT-LU"]);
+    expect(priceZones(Date.parse("2026-01-01T00:00:00Z"), Date.parse("2026-02-01T00:00:00Z")).map((z) => z.bzn)).toEqual(["DE-LU"]);
   });
 });
 

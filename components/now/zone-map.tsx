@@ -24,7 +24,7 @@ export function ZoneMap({ zones, flows, selected, hovered, onSelect, onHover }: 
   const surplus = scaleLinear<string>().domain([0, maxAbs]).range(SURPLUS).clamp(true);
   const deficit = scaleLinear<string>().domain([0, maxAbs]).range(DEFICIT).clamp(true);
   const fill = (z?: ZoneNow) =>
-    z?.balanceMW == null ? "#e2e8f0" : z.balanceMW >= 0 ? surplus(z.balanceMW) : deficit(-z.balanceMW);
+    z?.balanceMW == null ? "#e2e8f0" /* stays light: labels on zones are always dark */ : z.balanceMW >= 0 ? surplus(z.balanceMW) : deficit(-z.balanceMW);
   const maxFlow = Math.max(500, ...flows.map((f) => Math.abs(f.mw)));
   const anchors = geo.anchors as unknown as Record<string, { at: [number, number]; dir: [number, number] }>;
 
@@ -52,7 +52,7 @@ export function ZoneMap({ zones, flows, selected, hovered, onSelect, onHover }: 
             d={z.path}
             fill={fill(data)}
             fillRule="evenodd"
-            stroke="#ffffff"
+            stroke="var(--color-surface)"
             strokeWidth={1.5}
             strokeLinejoin="round"
             className="cursor-pointer transition-[filter] duration-150"
@@ -70,7 +70,7 @@ export function ZoneMap({ zones, flows, selected, hovered, onSelect, onHover }: 
       {(Object.entries(geo.zones) as unknown as [ZoneKey, { path: string }][])
         .filter(([key]) => key === hovered && key !== selected)
         .map(([key, z]) => (
-          <path key={`hover-${key}`} d={z.path} fill="none" stroke="#64748b" strokeWidth={2} strokeLinejoin="round" pointerEvents="none" data-outline="hover" />
+          <path key={`hover-${key}`} d={z.path} fill="none" stroke="var(--color-slate-500)" strokeWidth={2} strokeLinejoin="round" pointerEvents="none" data-outline="hover" />
         ))}
       {(Object.entries(geo.zones) as unknown as [ZoneKey, { path: string }][])
         .filter(([key]) => key === selected)
@@ -82,11 +82,12 @@ export function ZoneMap({ zones, flows, selected, hovered, onSelect, onHover }: 
         const data = zones.find((d) => d.key === key);
         return z.labels.map(([x, y], i) => (
           <g key={`${key}-${i}`} pointerEvents="none" textAnchor="middle">
-            <text x={x} y={y} className="fill-slate-900 text-[17px] font-semibold" paintOrder="stroke" stroke="white" strokeWidth={3} strokeOpacity={0.6}>
+            {/* Zone fills stay light in both themes, so labels are always dark with a light halo. */}
+            <text x={x} y={y} fill="#0f172a" className="text-[17px] font-semibold" paintOrder="stroke" stroke="#ffffff" strokeWidth={3} strokeOpacity={0.6}>
               {key}
             </text>
             {i === 0 && data?.balanceMW != null ? (
-              <text x={x} y={(y ?? 0) + 19} className="fill-slate-700 text-[14px] tabular-nums" paintOrder="stroke" stroke="white" strokeWidth={3} strokeOpacity={0.6}>
+              <text x={x} y={(y ?? 0) + 19} fill="#334155" className="text-[14px] tabular-nums" paintOrder="stroke" stroke="#ffffff" strokeWidth={3} strokeOpacity={0.6}>
                 {formatSigned(data.balanceMW / 1000, 1)} GW
               </text>
             ) : null}

@@ -24,7 +24,7 @@ export function Segmented<T extends string>({
             aria-checked={active}
             onClick={() => onChange(o.value)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              active ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+              active ? "bg-surface text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
             }`}
           >
             {o.label}

@@ -12,6 +12,9 @@ import {
   type CondOp,
   DATA_START,
   DOW_PRESETS,
+  estimatePoints,
+  MAX_POINTS,
+  rangeDays,
   type HistoryQuery,
   METRIC_LABEL,
   METRICS,
@@ -40,8 +43,8 @@ const NEIGHBOUR_NAMES: Record<string, string> = {
   FR: "Frankreich", CH: "Schweiz", AT: "Österreich", CZ: "Tschechien", PL: "Polen",
 };
 
-const inputCls = "block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums";
-const selectCls = "rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm";
+const inputCls = "block w-full rounded-xl border border-slate-200 bg-surface px-3 py-2 text-sm tabular-nums";
+const selectCls = "rounded-xl border border-slate-200 bg-surface px-2.5 py-2 text-sm";
 
 export function FilterSidebar(props: {
   query: HistoryQuery;
@@ -57,6 +60,7 @@ export function FilterSidebar(props: {
 }) {
   const { query: q, update, effectiveRes, publicMode } = props;
   const now = today();
+  const days = rangeDays(q);
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const allCarriers = CARRIERS.map((c) => c.key);
 
@@ -135,14 +139,24 @@ export function FilterSidebar(props: {
         <div role="radiogroup" aria-labelledby="f-res" className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
           {RESOLUTIONS.map((r) => {
             const active = effectiveRes === r;
+            // Too fine for the selected range (> ~5,000 points per series): greyed out, not selectable.
+            const tooFine = estimatePoints(days, r) > MAX_POINTS;
             return (
               <button
                 key={r}
                 type="button"
                 role="radio"
                 aria-checked={active}
+                disabled={tooFine}
+                title={tooFine ? `Für ${formatNumber(days, 0)} Tage zu fein (über 5.000 Punkte)` : undefined}
                 onClick={() => update({ res: r })}
-                className={`rounded-lg px-2 py-1.5 text-sm transition-colors ${active ? "bg-white font-medium text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+                className={`rounded-lg px-2 py-1.5 text-sm transition-colors ${
+                  active
+                    ? "bg-surface font-medium text-slate-900 shadow-sm"
+                    : tooFine
+                      ? "cursor-not-allowed text-slate-300 line-through decoration-slate-300/70"
+                      : "text-slate-500 hover:text-slate-900"
+                }`}
               >
                 {RESOLUTION_LABEL[r]}
               </button>
@@ -151,10 +165,13 @@ export function FilterSidebar(props: {
         </div>
         <p className="mt-2 text-xs text-slate-500">
           {q.res === "auto"
-            ? "Automatisch passend zum Zeitraum gewählt, damit nie mehr als ca. 5.000 Punkte gezeichnet werden."
+            ? "Automatisch passend zum Zeitraum gewählt. "
             : props.coarsened
-              ? `Für diesen Zeitraum zu fein – automatisch auf „${RESOLUTION_LABEL[effectiveRes]}“ vergröbert (max. ca. 5.000 Punkte).`
+              ? `Für diesen Zeitraum zu fein – automatisch auf „${RESOLUTION_LABEL[effectiveRes]}“ vergröbert. `
               : null}
+          {RESOLUTIONS.some((r) => estimatePoints(days, r) > MAX_POINTS)
+            ? "Ausgegraute Auflösungen ergäben mehr als ca. 5.000 Punkte und sind für diesen Zeitraum gesperrt."
+            : "Es werden nie mehr als ca. 5.000 Punkte gezeichnet."}
           {q.res !== "auto" ? (
             <button type="button" className="ml-1 text-indigo-600 underline-offset-2 hover:underline" onClick={() => update({ res: "auto" })}>
               Automatisch
@@ -445,7 +462,7 @@ function Actions({
           href={`/api/timeseries?${params}&format=csv`}
           download
           onClick={() => onTrack?.("csv_exported")}
-          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50"
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-surface px-3 py-2 text-sm font-medium hover:bg-slate-50"
         >
           CSV exportieren
         </a>

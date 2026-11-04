@@ -36,7 +36,7 @@ export function ZoneTiles({
               onMouseLeave={() => onHover(null)}
               onFocus={() => onHover(z.key)}
               onBlur={() => onHover(null)}
-              className={`w-full rounded-2xl border bg-white p-4 text-left transition-all duration-200 ${
+              className={`w-full rounded-2xl border bg-surface p-4 text-left transition-all duration-200 ${
                 active
                   ? "border-indigo-300 ring-2 ring-indigo-100"
                   : hovered === z.key

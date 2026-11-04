@@ -102,19 +102,19 @@ function Chart({ data, window }: { data: MixData; window: MixWindow }) {
             domain={[data.from, data.to]}
             ticks={ticks}
             tickFormatter={(t: number) => formatBerlin(t, window === "7d" ? "EEEEEE dd.MM." : "EEEEEE")}
-            tick={{ fontSize: 12, fill: "#64748b" }}
-            axisLine={{ stroke: "#e2e8f0" }}
+            tick={{ fontSize: 12, fill: "var(--color-slate-500)" }}
+            axisLine={{ stroke: "var(--color-slate-200)" }}
             tickLine={false}
           />
           <YAxis
             width={44}
             tickFormatter={(v: number) => `${v}`}
-            tick={{ fontSize: 12, fill: "#64748b" }}
+            tick={{ fontSize: 12, fill: "var(--color-slate-500)" }}
             axisLine={false}
             tickLine={false}
-            label={{ value: "GW", position: "insideTopLeft", offset: -18, fontSize: 12, fill: "#64748b" }}
+            label={{ value: "GW", position: "insideTopLeft", offset: -18, fontSize: 12, fill: "var(--color-slate-500)" }}
           />
-          {lastActual ? <ReferenceArea x1={lastActual} x2={data.to} fill="#f8fafc" fillOpacity={1} ifOverflow="extendDomain" /> : null}
+          {lastActual ? <ReferenceArea x1={lastActual} x2={data.to} fill="var(--color-forecast)" fillOpacity={1} ifOverflow="extendDomain" /> : null}
           {CARRIERS.map((c) => (
             <Area
               key={c.key}
@@ -128,8 +128,8 @@ function Chart({ data, window }: { data: MixData; window: MixWindow }) {
               connectNulls={false}
             />
           ))}
-          <Line dataKey="load" stroke="#0f172a" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
-          <Line dataKey="loadForecast" stroke="#0f172a" strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
+          <Line dataKey="load" stroke="var(--color-slate-900)" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
+          <Line dataKey="loadForecast" stroke="var(--color-slate-900)" strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
           <Line dataKey="reForecast" stroke="#4f46e5" strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
           {lastActual ? (
             <ReferenceLine
@@ -154,7 +154,7 @@ function MixTooltip({ active, payload, label }: TooltipProps) {
   const total = CARRIERS.reduce((a, c) => a + (r[c.key] ?? 0), 0);
   const hasMix = CARRIERS.some((c) => r[c.key] != null);
   return (
-    <div className="min-w-56 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-md">
+    <div className="min-w-56 rounded-xl border border-slate-200 bg-surface p-3 text-sm shadow-md">
       <p className="mb-2 font-medium tabular-nums">
         {formatBerlin(label, "EEE dd.MM. HH:mm")}–{formatBerlin(label + 15 * 60_000, "HH:mm")}
       </p>

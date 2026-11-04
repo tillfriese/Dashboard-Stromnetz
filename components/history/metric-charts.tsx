@@ -24,7 +24,7 @@ export function MetricCharts({ data, rows: base, query: q }: { data: TimeseriesR
       res: r.residualMW == null ? null : r.residualMW / 1000,
     }));
     const series: Series[] = [
-      ...(q.metrics.includes("load") ? [{ key: "load", name: "Netzlast", color: "#0f172a" }] : []),
+      ...(q.metrics.includes("load") ? [{ key: "load", name: "Netzlast", color: "var(--color-slate-900)" }] : []),
       ...(q.metrics.includes("residual") ? [{ key: "res", name: "Residuallast", color: "#d97706", dashed: true }] : []),
     ];
     charts.push(
@@ -42,7 +42,7 @@ export function MetricCharts({ data, rows: base, query: q }: { data: TimeseriesR
         sub="Mittelwert in €/MWh (DE-LU) · Quelle: Energy-Charts"
         unit="€/MWh"
         rows={rows}
-        series={[{ key: "price", name: "Day-Ahead-Preis", color: "#0f172a" }]}
+        series={[{ key: "price", name: "Day-Ahead-Preis", color: "var(--color-slate-900)" }]}
         res={res}
         zeroLine
       />,
@@ -59,7 +59,7 @@ export function MetricCharts({ data, rows: base, query: q }: { data: TimeseriesR
         sub="g CO₂/kWh, direkte Emissionen (Faktoren: Umweltbundesamt)"
         unit="g/kWh"
         rows={rows}
-        series={[{ key: "co2", name: `CO₂-Intensität (${regionLabel(q.regions)})`, color: "#0f172a" }]}
+        series={[{ key: "co2", name: `CO₂-Intensität (${regionLabel(q.regions)})`, color: "var(--color-slate-900)" }]}
         res={res}
       />,
     );
@@ -75,10 +75,10 @@ export function MetricCharts({ data, rows: base, query: q }: { data: TimeseriesR
         <div className="mt-4 h-56" role="img" aria-label={`Säulendiagramm Import/Export-Saldo ${q.flow === "sum" ? "aller Nachbarländer" : q.flow}`}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="label" tickFormatter={(l: string) => bucketLabel(l, res, true)} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} minTickGap={24} />
-              <YAxis width={52} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
-              <ReferenceLine y={0} stroke="#94a3b8" />
+              <CartesianGrid vertical={false} stroke="var(--color-slate-100)" />
+              <XAxis dataKey="label" tickFormatter={(l: string) => bucketLabel(l, res, true)} tick={{ fontSize: 12, fill: "var(--color-slate-500)" }} tickLine={false} minTickGap={24} />
+              <YAxis width={52} tick={{ fontSize: 12, fill: "var(--color-slate-500)" }} tickLine={false} axisLine={false} />
+              <ReferenceLine y={0} stroke="var(--color-slate-400)" />
               <Tooltip content={<SimpleTooltip res={res} unit="GW" />} isAnimationActive={false} />
               <Bar dataKey="flow" name="Saldo (+ Import)" isAnimationActive={false}>
                 {rows.map((r) => (
@@ -150,10 +150,10 @@ function LineCard(props: {
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={props.rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="label" tickFormatter={(l: string) => fmt(l)} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} minTickGap={24} />
-              <YAxis width={52} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatNumber(v, Math.abs(v) >= 100 ? 0 : 1)} />
-              {props.zeroLine ? <ReferenceLine y={0} stroke="#cbd5e1" /> : null}
+              <CartesianGrid vertical={false} stroke="var(--color-slate-100)" />
+              <XAxis dataKey="label" tickFormatter={(l: string) => fmt(l)} tick={{ fontSize: 12, fill: "var(--color-slate-500)" }} tickLine={false} minTickGap={24} />
+              <YAxis width={52} tick={{ fontSize: 12, fill: "var(--color-slate-500)" }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatNumber(v, Math.abs(v) >= 100 ? 0 : 1)} />
+              {props.zeroLine ? <ReferenceLine y={0} stroke="var(--color-slate-300)" /> : null}
               <Tooltip content={<SimpleTooltip res={props.res} unit={props.unit} />} isAnimationActive={false} />
               {props.series.map((s) => (
                 <Line
@@ -195,7 +195,7 @@ function SimpleTooltip({
 }) {
   if (!active || !payload?.length || !label) return null;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-md">
+    <div className="rounded-xl border border-slate-200 bg-surface p-3 text-sm shadow-md">
       <p className="mb-1.5 font-medium">{res ? bucketLabel(label, res) : formatBerlin(Date.parse(label), "MMMM yyyy")}</p>
       {payload.map((p) => (
         <p key={p.dataKey} className="tabular-nums">

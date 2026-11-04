@@ -54,7 +54,7 @@ export function SetupForm() {
           einem Sicherheitsschlüssel. Ohne zweiten Passkey sperrst du dich aus, wenn dieses Gerät verloren geht.
         </Alert>
         <div className="flex flex-wrap gap-3">
-          <Link href="/admin/system#passkeys" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+          <Link href="/admin/system#passkeys" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:brightness-110">
             Zweiten Passkey hinzufügen
           </Link>
           <Link href="/admin/datenquellen" className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50">

@@ -16,7 +16,7 @@ export function FilterChips({
   update: (p: Partial<HistoryQuery>) => void;
   onReset: () => void;
 }) {
-  const chip = "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 tabular-nums";
+  const chip = "rounded-full border border-slate-200 bg-surface px-3 py-1 text-xs font-medium text-slate-700 tabular-nums";
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <ul className="flex flex-wrap gap-2" aria-label="Aktive Filter">

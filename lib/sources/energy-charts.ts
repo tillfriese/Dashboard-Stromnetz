@@ -83,8 +83,26 @@ async function getJson(path: string, ctx?: FetchContext, timeoutMs = 60_000): Pr
 
 const inRange = (from: number, to: number) => (o: Observation) => o.ts >= from && o.ts < to;
 
+/**
+ * Germany's bidding zone was DE-AT-LU until the split on 1 Oct 2018 (00:00 Berlin), DE-LU since.
+ * Both are stored in the same series ("day-ahead price for Germany").
+ */
+export const BZN_SPLIT = Date.parse("2018-09-30T22:00:00Z");
+
+export function priceZones(from: number, to: number): { bzn: "DE-AT-LU" | "DE-LU"; from: number; to: number }[] {
+  const out: { bzn: "DE-AT-LU" | "DE-LU"; from: number; to: number }[] = [];
+  if (from < BZN_SPLIT) out.push({ bzn: "DE-AT-LU", from, to: Math.min(to, BZN_SPLIT) });
+  if (to > BZN_SPLIT) out.push({ bzn: "DE-LU", from: Math.max(from, BZN_SPLIT), to });
+  return out;
+}
+
 export async function fetchPrices(from: number, to: number, ctx?: FetchContext) {
-  return parsePrices(await getJson(`/price?bzn=DE-LU&start=${iso(from)}&end=${iso(to)}`, ctx)).filter(inRange(from, to));
+  const out: Observation[] = [];
+  for (const z of priceZones(from, to)) {
+    const json = await getJson(`/price?bzn=${z.bzn}&start=${iso(z.from)}&end=${iso(z.to)}`, ctx);
+    out.push(...parsePrices(json).filter(inRange(z.from, z.to)));
+  }
+  return out;
 }
 
 export async function fetchFlows(from: number, to: number, ctx?: FetchContext) {
@@ -102,7 +120,7 @@ export const energyChartsAdapter: SourceAdapter = {
   earliest: "2015-01-01",
   series(): SeriesDef[] {
     return [
-      { key: PRICE_KEY, source: "energycharts", region: "DE-LU", unit: "EUR/MWh", label: "Day-Ahead-Preis DE-LU", kind: "actual" },
+      { key: PRICE_KEY, source: "energycharts", region: "DE-LU", unit: "EUR/MWh", label: "Day-Ahead-Preis DE-LU (bis 30.09.2018 DE-AT-LU)", kind: "actual" },
       { key: NET_IMPORT_KEY, source: "energycharts", region: "DE", unit: "MW", label: "Netto-Import (physikalisch)", kind: "actual" },
       ...Object.values(CBPF_COUNTRIES).map(
         (cc): SeriesDef => ({ key: flowKey(cc), source: "energycharts", region: cc, unit: "MW", label: `Grenzfluss ${cc}`, kind: "actual" }),

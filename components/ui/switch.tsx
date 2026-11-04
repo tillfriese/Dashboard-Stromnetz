@@ -26,7 +26,7 @@ export function Switch({
     >
       <span
         aria-hidden
-        className={`inline-block size-5 rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-5.5" : "translate-x-0.5"}`}
+        className={`inline-block size-5 rounded-full bg-surface shadow-sm transition-transform ${checked ? "translate-x-5.5" : "translate-x-0.5"}`}
       />
     </button>
   );

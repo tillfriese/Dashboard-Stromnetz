@@ -111,18 +111,18 @@ export function MainChart({
   };
   const axis = (
     <>
-      <CartesianGrid vertical={false} stroke="#f1f5f9" />
+      <CartesianGrid vertical={false} stroke="var(--color-slate-100)" />
       <XAxis
         dataKey="label"
         tickFormatter={(l: string) => bucketLabel(l, res, true)}
-        tick={{ fontSize: 12, fill: "#64748b" }}
+        tick={{ fontSize: 12, fill: "var(--color-slate-500)" }}
         tickLine={false}
-        axisLine={{ stroke: "#e2e8f0" }}
+        axisLine={{ stroke: "var(--color-slate-200)" }}
         minTickGap={24}
       />
       <YAxis
         width={52}
-        tick={{ fontSize: 12, fill: "#64748b" }}
+        tick={{ fontSize: 12, fill: "var(--color-slate-500)" }}
         tickLine={false}
         axisLine={false}
         tickFormatter={(v: number) => (percent ? `${Math.round(v * 100)} %` : formatNumber(v, v >= 100 ? 0 : 1))}
@@ -139,7 +139,7 @@ export function MainChart({
         {carriers.map((c) => (
           <Line key={c.key} dataKey={c.key} name={c.label} stroke={c.color} strokeWidth={2} dot={false} isAnimationActive={false} />
         ))}
-        {prevRows ? <Line dataKey="prev" name="Vorjahr (Summe)" stroke="#0f172a" strokeDasharray="5 4" dot={false} isAnimationActive={false} /> : null}
+        {prevRows ? <Line dataKey="prev" name="Vorjahr (Summe)" stroke="var(--color-slate-900)" strokeDasharray="5 4" dot={false} isAnimationActive={false} /> : null}
       </LineChart>
     ) : energy ? (
       <ComposedChart {...common} barCategoryGap="18%">
@@ -156,7 +156,7 @@ export function MainChart({
             onClick={(d: { payload?: { label?: string } }) => drill(d?.payload?.label ?? null)}
           />
         ))}
-        {prevRows && !percent ? <Line dataKey="prev" name="Vorjahr (Summe)" stroke="#0f172a" strokeDasharray="5 4" dot={false} isAnimationActive={false} /> : null}
+        {prevRows && !percent ? <Line dataKey="prev" name="Vorjahr (Summe)" stroke="var(--color-slate-900)" strokeDasharray="5 4" dot={false} isAnimationActive={false} /> : null}
       </ComposedChart>
     ) : (
       <AreaChart {...common} onClick={(st: { activeLabel?: string | number }) => drill(label(st))}>
@@ -248,7 +248,7 @@ function RowTooltip({ active, payload, label, res, unit, percent }: TooltipProps
   const items = payload.filter((p) => p.dataKey !== "prev" && p.value != null);
   const total = items.reduce((a, p) => a + Number(row[p.dataKey] ?? 0), 0);
   return (
-    <div className="min-w-56 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-md">
+    <div className="min-w-56 rounded-xl border border-slate-200 bg-surface p-3 text-sm shadow-md">
       <p className="mb-2 font-medium">{bucketLabel(label, res)}</p>
       <table className="w-full tabular-nums">
         <tbody>

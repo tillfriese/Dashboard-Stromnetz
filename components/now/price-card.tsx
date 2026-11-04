@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardError } from "@/components/ui/card";
+import { HoverTooltip, svgPoint } from "@/components/ui/hover-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableDetails } from "@/components/ui/table-details";
 import { formatBerlin, formatNumber } from "@/lib/format";
@@ -9,13 +11,14 @@ import { useNow } from "@/lib/hooks/use-now";
 import { QUARTER_HOUR_MS } from "@/lib/time";
 
 const W = 360;
-const H = 120;
+const H = 92;
 const PAD_L = 26;
+const VIEWBOX = { x: 0, y: -14, w: W, h: H + 32 };
 
 /** Day-ahead price now plus a 15-minute bar chart for today and tomorrow. */
 export function PriceCard({ data, error }: { data: PriceData | null; error: string | null }) {
   return (
-    <Card labelledBy="price-title" className="min-h-[420px]">
+    <Card labelledBy="price-title" compact className="min-h-80 flex-1">
       <div className="flex items-start justify-between">
         <h2 id="price-title" className="text-sm font-medium text-slate-500">
           Day-Ahead-Preis
@@ -23,7 +26,7 @@ export function PriceCard({ data, error }: { data: PriceData | null; error: stri
         <span className="text-xs text-slate-500">DE-LU · 15 min</span>
       </div>
       {data == null ? (
-        error ? <CardError /> : <Skeleton className="mt-4 h-72 w-full" />
+        error ? <CardError /> : <Skeleton className="mt-3 h-60 w-full" />
       ) : (
         <PriceBody data={data} />
       )}
@@ -33,11 +36,12 @@ export function PriceCard({ data, error }: { data: PriceData | null; error: stri
 
 function PriceBody({ data }: { data: PriceData }) {
   const now = useNow(30_000);
+  const [hoverTs, setHoverTs] = useState<number | null>(null);
   const start = data.dayBoundaries[0]!;
   const end = data.tomorrowAvailable ? data.dayBoundaries[2]! : data.dayBoundaries[1]!;
   const pts = data.points.filter(([ts]) => ts < end);
-  if (pts.length === 0) return <CardError message="Noch keine Preise für heute." />;
 
+  if (pts.length === 0) return <CardError message="Noch keine Preise für heute." />;
   const values = pts.map(([, v]) => v);
   const max = Math.max(50, ...values);
   const min = Math.min(0, ...values);
@@ -46,27 +50,41 @@ function PriceBody({ data }: { data: PriceData }) {
   const y = (v: number) => H - ((v - min) / span) * H;
   const bw = Math.max(0.6, ((W - PAD_L) * QUARTER_HOUR_MS) / (end - start) - 0.4);
   const ticks = niceTicks(min, max);
+  const hovered = hoverTs == null ? null : pts.find(([ts]) => ts === hoverTs) ?? null;
+
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const p = svgPoint(e, VIEWBOX);
+    if (p.x < PAD_L) return setHoverTs(null);
+    const t = start + ((p.x - PAD_L) / (W - PAD_L)) * (end - start);
+    const q = Math.floor(t / QUARTER_HOUR_MS) * QUARTER_HOUR_MS;
+    setHoverTs(pts.some(([ts]) => ts === q) ? q : null);
+  };
 
   return (
     <>
-      <p className="mt-3 text-4xl font-semibold tracking-tight tabular-nums">
-        {data.now ? formatNumber(data.now.price, 2) : "–"}
-        <span className="ml-1.5 text-lg font-medium text-slate-500">€/MWh</span>
-      </p>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-slate-50 px-3 py-2">
-          <p className="text-xs text-slate-500">Heute Ø</p>
-          <p className="font-semibold tabular-nums">{formatNumber(data.avgToday, 2)}</p>
-        </div>
-        <div className="rounded-xl bg-slate-50 px-3 py-2">
-          <p className="text-xs text-slate-500">Morgen Ø</p>
-          <p className="font-semibold tabular-nums">{data.tomorrowAvailable ? formatNumber(data.avgTomorrow, 2) : "ab ca. 13 Uhr"}</p>
-        </div>
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <p className="text-3xl font-semibold tracking-tight tabular-nums">
+          {data.now ? formatNumber(data.now.price, 2) : "–"}
+          <span className="ml-1.5 text-base font-medium text-slate-500">€/MWh</span>
+        </p>
+        <dl className="flex gap-4 text-right text-xs">
+          <div>
+            <dt className="text-slate-500">Heute Ø</dt>
+            <dd className="text-sm font-semibold tabular-nums">{formatNumber(data.avgToday, 2)}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Morgen Ø</dt>
+            <dd className="text-sm font-semibold tabular-nums">{data.tomorrowAvailable ? formatNumber(data.avgTomorrow, 2) : "ab ca. 13 Uhr"}</dd>
+          </div>
+        </dl>
       </div>
 
+      <div className="relative mt-3">
       <svg
-        viewBox={`0 -14 ${W} ${H + 32}`}
-        className="mt-4 w-full"
+        viewBox={`${VIEWBOX.x} ${VIEWBOX.y} ${VIEWBOX.w} ${VIEWBOX.h}`}
+        className="w-full cursor-crosshair"
+        onMouseMove={onMove}
+        onMouseLeave={() => setHoverTs(null)}
         role="img"
         aria-label={`Day-Ahead-Preise in 15-Minuten-Auflösung, heute${data.tomorrowAvailable ? " und morgen" : ""}. Aktuell ${data.now ? formatNumber(data.now.price, 2) : "unbekannt"} Euro pro Megawattstunde.`}
       >
@@ -100,8 +118,28 @@ function PriceBody({ data }: { data: PriceData }) {
           </text>,
         ])}
         {data.tomorrowAvailable ? <line x1={x(data.dayBoundaries[1]!)} x2={x(data.dayBoundaries[1]!)} y1={0} y2={H} className="stroke-slate-200" /> : null}
+        {hovered ? (
+          <rect
+            x={x(hovered[0]) - 0.8}
+            width={bw + 1.6}
+            y={Math.min(y(hovered[1]), y(0)) - 0.8}
+            height={Math.max(0.5, Math.abs(y(hovered[1]) - y(0))) + 1.6}
+            className="fill-none stroke-indigo-600"
+            strokeWidth={1}
+            pointerEvents="none"
+          />
+        ) : null}
       </svg>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+      {hovered ? (
+        <HoverTooltip xPct={((x(hovered[0]) + bw / 2 - VIEWBOX.x) / VIEWBOX.w) * 100} yPct={((Math.min(y(hovered[1]), y(0)) - VIEWBOX.y) / VIEWBOX.h) * 100}>
+          <span className="text-slate-500">
+            {formatBerlin(hovered[0], "EEE HH:mm")}–{formatBerlin(hovered[0] + QUARTER_HOUR_MS, "HH:mm")}
+          </span>{" "}
+          <span className={`font-semibold ${hovered[1] < 0 ? "text-indigo-700" : "text-slate-900"}`}>{formatNumber(hovered[1], 2)} €/MWh</span>
+        </HoverTooltip>
+      ) : null}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
         <Legend cls="bg-slate-700" label="kommend" />
         <Legend cls="bg-slate-300" label="vergangen" />
         <Legend cls="bg-indigo-500" label="negativ" />

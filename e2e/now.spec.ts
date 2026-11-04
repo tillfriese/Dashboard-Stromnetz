@@ -35,6 +35,11 @@ test.describe("Seite „Jetzt“", () => {
     }
     await expect(page.getByRole("img", { name: /Karte der vier Übertragungsnetzgebiete/ })).toBeVisible();
     await expect(page.getByRole("img", { name: /Karte der vier/ }).locator("path[aria-hidden]")).toHaveCount(4);
+    // The note about simplified areas sits directly below the map (same column), not below the tiles.
+    const sameColumn = await page.getByText(/Gebiete vereinfacht nach Bundesländern/).evaluate(
+      (p) => p.parentElement?.querySelector('svg[aria-label^="Karte der vier"]') != null,
+    );
+    expect(sameColumn).toBe(true);
     await expect(page.getByRole("list", { name: "Regelzonen" }).getByRole("button")).toHaveCount(4);
     await expect(page.locator("#re-title").locator("..")).toContainText("%");
     await expect(page.locator("#co2-title").locator("..")).toContainText("g/kWh");
@@ -45,9 +50,9 @@ test.describe("Seite „Jetzt“", () => {
     // Data status below the title: live indicator, delay and data timestamp
     await expect(page.getByText(/Erzeugung & Last ca\. \d+ (min|h) verzögert/)).toBeVisible();
     await expect(page.getByText(/Datenstand \d{2}:\d{2} Uhr/)).toBeVisible();
-    // Navigation: a centred pill with "Jetzt" / "Historie", no full-width top bar.
+    // Navigation: a centred pill with "Aktuell" / "Historie", no full-width top bar.
     const nav = page.getByRole("navigation", { name: "Hauptnavigation" });
-    await expect(nav.getByRole("link", { name: "Jetzt" })).toHaveAttribute("aria-current", "page");
+    await expect(nav.getByRole("link", { name: "Aktuell" })).toHaveAttribute("aria-current", "page");
     const box = (await nav.boundingBox())!;
     const width = page.viewportSize()!.width;
     expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(2);

@@ -7,7 +7,7 @@ export function TableDetails({ summary = "Als Tabelle anzeigen", head, rows }: {
       <summary className="cursor-pointer rounded text-slate-500 hover:text-slate-900">{summary}</summary>
       <div className="mt-2 max-h-72 overflow-auto rounded-xl border border-slate-100">
         <table className="w-full text-left tabular-nums">
-          <thead className="sticky top-0 bg-white text-xs text-slate-500">
+          <thead className="sticky top-0 bg-surface text-xs text-slate-500">
             <tr>
               {head.map((h, i) => (
                 <th key={i} className="px-3 py-2 font-medium">

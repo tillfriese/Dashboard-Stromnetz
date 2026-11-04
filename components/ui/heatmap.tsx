@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { HoverTooltip, svgPoint } from "./hover-tooltip";
 import { TableDetails } from "./table-details";
 
 /**
@@ -34,16 +36,43 @@ export function Heatmap({
   const bottom = 18;
   const width = left + cols * cw;
   const height = rows * ch + bottom;
+  const [hover, setHover] = useState<{ r: number; c: number } | null>(null);
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const p = svgPoint(e, { x: 0, y: 0, w: width, h: height });
+    const c = Math.floor((p.x - left) / cw);
+    const r = Math.floor(p.y / ch);
+    setHover(c >= 0 && c < cols && r >= 0 && r < rows ? { r, c } : null);
+  };
+  const hv = hover ? (values[hover.r]?.[hover.c] ?? null) : null;
   return (
     <>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label={ariaLabel}>
+      <div className="relative">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-auto w-full"
+        role="img"
+        aria-label={ariaLabel}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
+      >
         {values.map((row, r) =>
           row.map((v, c) => (
-            <rect key={`${r}-${c}`} x={left + c * cw + 0.5} y={r * ch + 0.5} width={cw - 1} height={ch - 1} rx={1.2} fill={v == null ? "#f1f5f9" : color(v)}>
-              <title>{`${rowLabels[r]}, ${colLabels[c]}: ${format(v)}`}</title>
-            </rect>
+            <rect key={`${r}-${c}`} x={left + c * cw + 0.5} y={r * ch + 0.5} width={cw - 1} height={ch - 1} rx={1.2} fill={v == null ? "var(--color-slate-100)" : color(v)} />
           )),
         )}
+        {hover ? (
+          <rect
+            x={left + hover.c * cw + 0.2}
+            y={hover.r * ch + 0.2}
+            width={cw - 0.4}
+            height={ch - 0.4}
+            rx={1.4}
+            fill="none"
+            stroke="var(--color-slate-900)"
+            strokeWidth={0.8}
+            pointerEvents="none"
+          />
+        ) : null}
         {rowLabels.map((l, r) =>
           r % rowTickEvery === 0 ? (
             <text key={l} x={left - 5} y={r * ch + ch * 0.75} textAnchor="end" className="fill-slate-500 text-[7px]">
@@ -57,6 +86,15 @@ export function Heatmap({
           </text>
         ))}
       </svg>
+      {hover ? (
+        <HoverTooltip xPct={((left + hover.c * cw + cw / 2) / width) * 100} yPct={((hover.r * ch) / height) * 100}>
+          <span className="text-slate-500">
+            {colLabels[hover.c]} · {rowLabels[hover.r]}
+          </span>{" "}
+          <span className="font-semibold text-slate-900">{format(hv)}</span>
+        </HoverTooltip>
+      ) : null}
+      </div>
       <TableDetails
         head={["", ...colLabels]}
         rows={values.map((row, r) => [rowLabels[r], ...row.map((v) => format(v))])}

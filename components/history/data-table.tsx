@@ -27,7 +27,7 @@ export function DataTable({ rows, res, query: q, publicMode }: { rows: Row[]; re
       </CardTitle>
       <div className="mt-4 max-h-[520px] overflow-auto">
         <table className="w-full text-right text-sm whitespace-nowrap tabular-nums">
-          <thead className="sticky top-0 bg-white text-xs text-slate-500">
+          <thead className="sticky top-0 bg-surface text-xs text-slate-500">
             <tr className="border-b border-slate-200">
               <th scope="col" className="py-2.5 pr-4 text-left font-medium">
                 Zeitraum
