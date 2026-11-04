@@ -12,7 +12,7 @@ export function SignOutButton() {
       className="w-full justify-start px-3"
       onClick={async () => {
         await authClient.signOut();
-        router.replace("/admin/login");
+        router.replace("/anmelden");
         router.refresh();
       }}
     >

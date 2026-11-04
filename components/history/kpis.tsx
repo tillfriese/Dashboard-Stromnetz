@@ -46,16 +46,16 @@ export function KpiTiles({ data, rows, query: q }: { data: TimeseriesResponse; r
         : null;
 
   return (
-    <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-6 xl:grid-cols-4">
       <Tile title="Nettoerzeugung">
         <Value v={e.v} u={e.u} />
-        <p className="mt-2 text-xs text-slate-500">Auswahl, {regionLabel(q.regions)}</p>
+        <p className="mt-1 text-xs leading-snug text-slate-500 sm:mt-2">Auswahl, {regionLabel(q.regions)}</p>
         {genPrev ? <Delta pct={((gen - genPrev) / genPrev) * 100} /> : null}
       </Tile>
 
       <Tile title="EE-Anteil">
         <Value v={formatNumber(share, 1)} u="%" />
-        <p className="mt-2 text-xs text-slate-500">an der Erzeugung im Zeitraum</p>
+        <p className="mt-1 text-xs leading-snug text-slate-500 sm:mt-2">an der Erzeugung im Zeitraum</p>
         {sharePrev != null && share != null ? (
           <div className="mt-2">
             <Pill tone="indigo">Vorjahr: {formatNumber(sharePrev, 1)} %</Pill>
@@ -73,12 +73,12 @@ export function KpiTiles({ data, rows, query: q }: { data: TimeseriesResponse; r
         {coalChange ? (
           <>
             <Value v={formatSigned(coalChange.pct, 0)} u="%" />
-            <p className="mt-2 text-xs text-slate-500">{coalChange.note}</p>
+            <p className="mt-1 text-xs leading-snug text-slate-500 sm:mt-2">{coalChange.note}</p>
           </>
         ) : (
           <>
             <Value v={energyText(coalTotal).v} u={energyText(coalTotal).u} />
-            <p className="mt-2 text-xs text-slate-500">Braun- und Steinkohle im Zeitraum</p>
+            <p className="mt-1 text-xs leading-snug text-slate-500 sm:mt-2">Braun- und Steinkohle im Zeitraum</p>
           </>
         )}
       </Tile>
@@ -86,19 +86,19 @@ export function KpiTiles({ data, rows, query: q }: { data: TimeseriesResponse; r
       {data.kpi.matchedHours != null ? (
         <Tile title="Stunden mit allen Bedingungen">
           <Value v={`≈ ${formatNumber(data.kpi.matchedHours, 0)}`} u="h" />
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-1 text-xs leading-snug text-slate-500 sm:mt-2">
             {formatNumber((data.kpi.matchedHours / data.kpi.totalHours) * 100, 1)} % des Zeitraums
           </p>
         </Tile>
       ) : data.kpi.negativePriceHours != null ? (
         <Tile title="Stunden mit Preis < 0">
           <Value v={`≈ ${formatNumber(data.kpi.negativePriceHours, 0)}`} u="h" />
-          <p className="mt-2 text-xs text-slate-500">im gewählten Zeitraum</p>
+          <p className="mt-1 text-xs leading-snug text-slate-500 sm:mt-2">im gewählten Zeitraum</p>
         </Tile>
       ) : (
         <Tile title="CO₂-Intensität Ø">
           <Value v={formatNumber(rows.length ? rows.reduce((a, r) => a + (r.co2 ?? 0), 0) / rows.filter((r) => r.co2 != null).length : null, 0)} u="g/kWh" />
-          <p className="mt-2 text-xs text-slate-500">Mittel der Abschnitte</p>
+          <p className="mt-1 text-xs leading-snug text-slate-500 sm:mt-2">Mittel der Abschnitte</p>
         </Tile>
       )}
     </div>
@@ -107,8 +107,8 @@ export function KpiTiles({ data, rows, query: q }: { data: TimeseriesResponse; r
 
 function Tile({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="card min-h-36 p-6">
-      <h2 className="text-sm text-slate-500">{title}</h2>
+    <section className="card min-w-0 p-4 sm:min-h-36 sm:p-6">
+      <h2 className="text-xs text-slate-500 sm:text-sm">{title}</h2>
       {children}
     </section>
   );
@@ -116,9 +116,9 @@ function Tile({ title, children }: { title: string; children: React.ReactNode })
 
 function Value({ v, u }: { v: string; u: string }) {
   return (
-    <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">
+    <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums sm:mt-2 sm:text-3xl">
       {v}
-      <span className="ml-1 text-base font-medium text-slate-500">{u}</span>
+      <span className="ml-1 text-sm font-medium text-slate-500 sm:text-base">{u}</span>
     </p>
   );
 }

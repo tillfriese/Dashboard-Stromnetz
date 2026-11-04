@@ -85,7 +85,7 @@ test.describe.serial("Besucherstatistik", () => {
     // Admin pages: the tracker is not active there and the collector rejects /admin paths
     const human = await humanContext(browser);
     const a = await human.newPage();
-    await a.goto("/admin/login");
+    await a.goto("/admin/registrieren");
     await a.waitForTimeout(1500);
     await request.post("/api/collect", { headers: { "User-Agent": CHROME }, data: JSON.stringify({ type: "pageview", path: "/admin/system" }) });
     await human.close();
@@ -111,7 +111,10 @@ test.describe.serial("Besucherstatistik", () => {
       { type: "pageview", path: "/historie", screen: "mobile" },
       { type: "event", path: "/historie", name: "history_carrier", label: "wind" },
     ]);
-    expect(count(`SELECT count(*) FROM visits`)).toBe(3);
+    expect(
+      count(`SELECT count(*) FROM visits`),
+      psql(`SELECT string_agg(started_at::text || ' ' || coalesce(entry_path, '') || ' ' || coalesce(browser, '') || ' ' || coalesce(device, ''), E'\n') FROM visits`),
+    ).toBe(3);
 
     const ctx = await browser.newContext();
     const { page } = await newPageWithAuthenticator(ctx);

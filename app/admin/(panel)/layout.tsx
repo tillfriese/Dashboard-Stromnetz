@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminPanelLayout({ children }: { children: React.ReactNode }) {
   // Checked again here, independent of proxy.ts.
   const session = await getAdminSession();
-  if (!session) redirect("/admin/login");
+  if (!session) redirect("/anmelden?next=/admin");
 
   return (
     <div className="mx-auto grid max-w-[1440px] gap-8 px-4 py-8 sm:px-8 sm:py-10 lg:grid-cols-[200px_minmax(0,1fr)]">

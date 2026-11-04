@@ -1,10 +1,13 @@
 "use client";
 
 import { addDays, addYears, format, parseISO } from "date-fns";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { radioKeyDown } from "@/components/ui/radio-keys";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { CARRIERS } from "@/lib/carriers";
 import { formatNumber } from "@/lib/format";
 import {
@@ -19,6 +22,8 @@ import {
   type HistoryQuery,
   METRIC_LABEL,
   METRICS,
+  PRESETS,
+  presetSearch,
   RESOLUTION_LABEL,
   RESOLUTIONS,
   type Resolution,
@@ -51,6 +56,7 @@ export function FilterSidebar(props: {
   carrierTotals: Record<string, number> | null;
   views: View[];
   onViewSaved: (v: View) => void;
+  signedIn: boolean;
   publicMode: boolean;
   onTrack?: (name: string, props?: Record<string, unknown>) => void;
 }) {
@@ -68,43 +74,62 @@ export function FilterSidebar(props: {
           className={`${selectCls} w-full`}
           value=""
           onChange={(e) => {
+            const preset = e.target.value.startsWith("preset:") ? presetSearch(e.target.value.slice(7)) : null;
+            if (preset != null) return props.replaceAll(preset);
             const v = props.views.find((x) => x.id === e.target.value);
             if (v) props.replaceAll(v.params);
           }}
         >
-          <option value="">{props.views.length ? "Ansicht wählen …" : "Noch keine Ansichten"}</option>
-          {props.views.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
+          <option value="">Ansicht wählen …</option>
+          <optgroup label="Vorlagen">
+            {PRESETS.map((p) => (
+              <option key={p.id} value={`preset:${p.id}`}>
+                {p.label}
+              </option>
+            ))}
+          </optgroup>
+          {props.views.length ? (
+            <optgroup label="Meine Ansichten">
+              {props.views.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </select>
+        {props.signedIn ? null : (
+          <p className="mt-2 text-xs text-slate-500">
+            Du bist als Gast unterwegs.{" "}
+            <SignInLink className="font-medium text-indigo-600 underline-offset-2 hover:underline">Anmelden</SignInLink>, um eigene Ansichten zu
+            speichern.
+          </p>
+        )}
       </Section>
 
       <Section title="Zeitraum" id="f-range">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-slate-500">
-            Von
-            <input
-              type="date"
-              className={`${inputCls} mt-1`}
-              min={DATA_START}
-              max={q.to}
-              value={q.from}
-              onChange={(e) => e.target.value && update({ from: e.target.value })}
-            />
-          </label>
-          <label className="text-xs text-slate-500">
-            Bis
-            <input
-              type="date"
-              className={`${inputCls} mt-1`}
-              min={q.from}
-              max={now}
-              value={q.to}
-              onChange={(e) => e.target.value && update({ to: e.target.value })}
-            />
-          </label>
+        <div className="grid grid-cols-2 gap-2.5">
+          <DatePicker
+            id="f-from"
+            label="Von"
+            value={q.from}
+            min={DATA_START}
+            max={q.to}
+            rangeStart={q.from}
+            rangeEnd={q.to}
+            onChange={(from) => update({ from })}
+          />
+          <DatePicker
+            id="f-to"
+            label="Bis"
+            value={q.to}
+            min={q.from}
+            max={now}
+            rangeStart={q.from}
+            rangeEnd={q.to}
+            align="end"
+            onChange={(to) => update({ to })}
+          />
         </div>
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Schnellwahl Zeitraum">
           {QUICK.map((x) => {
@@ -204,7 +229,6 @@ export function FilterSidebar(props: {
             />
           ))}
         </div>
-        <p className="mt-2 text-xs text-slate-500">Ausgewählte Regelzonen werden addiert; alle vier ergeben Deutschland.</p>
       </Section>
 
       <Section
@@ -240,7 +264,6 @@ export function FilterSidebar(props: {
             />
           ))}
         </div>
-        <p className="mt-2 text-xs text-slate-500">Zahl rechts: Erzeugung der gewählten Regelzonen im Zeitraum in TWh.</p>
       </Section>
 
       <Section title="Weitere Kenngrößen" id="f-metrics">
@@ -254,7 +277,7 @@ export function FilterSidebar(props: {
 
       <ConditionsEditor conditions={q.conditions} publicMode={publicMode} onChange={(conditions) => update({ conditions })} onTrack={props.onTrack} />
 
-      <Actions query={q} onViewSaved={props.onViewSaved} onTrack={props.onTrack} />
+      <Actions query={q} onViewSaved={props.onViewSaved} onTrack={props.onTrack} signedIn={props.signedIn} />
     </aside>
   );
 }
@@ -403,9 +426,11 @@ function Actions({
   query,
   onViewSaved,
   onTrack,
+  signedIn,
 }: {
   query: HistoryQuery;
   onViewSaved: (v: View) => void;
+  signedIn: boolean;
   onTrack?: (name: string, props?: Record<string, unknown>) => void;
 }) {
   const [saving, setSaving] = useState(false);
@@ -430,7 +455,11 @@ function Actions({
 
   return (
     <div className="space-y-3 border-t border-slate-100 pt-6">
-      {saving ? (
+      {!signedIn ? (
+        <SignInLink className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-surface px-3 py-2 text-sm font-medium hover:bg-slate-50">
+          Anmelden zum Speichern
+        </SignInLink>
+      ) : saving ? (
         <form onSubmit={save} className="space-y-2">
           <label htmlFor="view-name" className="text-sm font-medium text-slate-700">
             Name der Ansicht
@@ -471,5 +500,17 @@ function Actions({
       </div>
       {msg ? <Alert tone={msg.tone}>{msg.text}</Alert> : null}
     </div>
+  );
+}
+
+/** Link to the sign-in page that returns to the current view afterwards. */
+function SignInLink({ className, children }: { className?: string; children: React.ReactNode }) {
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const next = pathname + (search ? `?${search}` : "");
+  return (
+    <Link href={`/anmelden?next=${encodeURIComponent(next)}`} className={className}>
+      {children}
+    </Link>
   );
 }

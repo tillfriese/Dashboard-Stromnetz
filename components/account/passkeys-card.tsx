@@ -10,7 +10,8 @@ import { formatBerlin } from "@/lib/format";
 
 type Row = { id: string; name: string; device: string; backedUp: boolean; createdAt: string | null; lastUsedAt: string | null };
 
-export function PasskeysCard({ initial: rows }: { initial: Row[] }) {
+export function PasskeysCard({ initial: rows, hasPassword = false }: { initial: Row[]; hasPassword?: boolean }) {
+  const canDeleteLast = hasPassword;
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,7 +41,9 @@ export function PasskeysCard({ initial: rows }: { initial: Row[] }) {
             Meine Passkeys
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Hinterlege mindestens zwei Passkeys auf verschiedenen Geräten, damit du dich nicht aussperrst.
+            {hasPassword
+              ? "Mit einem Passkey meldest du dich ohne Passwort per Fingerabdruck, Gesicht oder Geräte-PIN an."
+              : "Hinterlege mindestens zwei Passkeys auf verschiedenen Geräten, damit du dich nicht aussperrst."}
           </p>
         </div>
         <Button
@@ -52,7 +55,7 @@ export function PasskeysCard({ initial: rows }: { initial: Row[] }) {
         </Button>
       </div>
 
-      {rows.length < 2 ? (
+      {rows.length < 2 && !hasPassword ? (
         <div className="mt-4">
           <Alert tone="warning">Du hast nur einen Passkey. Lege einen zweiten auf einem anderen Gerät oder Sicherheitsschlüssel an.</Alert>
         </div>
@@ -63,7 +66,8 @@ export function PasskeysCard({ initial: rows }: { initial: Row[] }) {
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-x-auto" tabIndex={0} role="region" aria-label="Passkeys (scrollbar)">
+      {rows.length === 0 ? <p className="mt-5 text-sm text-slate-500">Noch keine Passkeys hinterlegt.</p> : null}
+      <div className={`mt-5 overflow-x-auto ${rows.length === 0 ? "hidden" : ""}`} tabIndex={0} role="region" aria-label="Passkeys (scrollbar)">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-slate-500">
             <tr className="border-b border-slate-100">
@@ -127,8 +131,8 @@ export function PasskeysCard({ initial: rows }: { initial: Row[] }) {
                   <Button
                     variant="ghost"
                     className="px-2 py-1 text-red-700"
-                    disabled={busy || rows.length <= 1}
-                    title={rows.length <= 1 ? "Der letzte Passkey kann nicht gelöscht werden" : undefined}
+                    disabled={busy || (rows.length <= 1 && !canDeleteLast)}
+                    title={rows.length <= 1 && !canDeleteLast ? "Der letzte Passkey kann nicht gelöscht werden" : undefined}
                     onClick={() => {
                       if (confirm(`Passkey „${p.name}“ wirklich löschen?`)) run(() => authClient.passkey.deletePasskey({ id: p.id }));
                     }}

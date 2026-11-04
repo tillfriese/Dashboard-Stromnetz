@@ -5,7 +5,7 @@
 import { CARRIERS, type CarrierKey } from "@/lib/carriers";
 import { CO2_G_PER_KWH, GENERATION_METRICS, METRIC_TO_CARRIER, RENEWABLE_METRICS } from "@/lib/energy";
 import { flowKey, NET_IMPORT_KEY, PRICE_KEY, smardSeriesKey } from "@/lib/sources/keys";
-import { type HistoryQuery, showsEnergy } from "./query";
+import { dataRegions, type HistoryQuery, showsEnergy } from "./query";
 import type { SeriesBlock, Stat, TimeseriesResponse } from "./types";
 
 export type Row = {
@@ -54,8 +54,9 @@ export function deriveRows(
   res: TimeseriesResponse["res"],
 ): Row[] {
   const asEnergy = showsEnergy(res);
+  const series = dataRegions(regions);
   return block.buckets.map((ts, i) => {
-    const metric = (m: string) => combined(block, m, regions, i);
+    const metric = (m: string) => combined(block, m, series, i);
     // Energy per SMARD metric (always energy-weighted for shares and CO2).
     const e: Record<string, number | null> = {};
     for (const m of GENERATION_METRICS) e[m] = energy(metric(m));
@@ -86,8 +87,8 @@ export function deriveRows(
       total: selected.length ? selected.reduce((a, b) => a + b, 0) : null,
       reShare: anyGen && totalE > 0 ? (RENEWABLE_METRICS.reduce((a, m) => a + (e[m] ?? 0), 0) / totalE) * 100 : null,
       co2: anyGen && totalE > 0 ? GENERATION_METRICS.reduce((a, m) => a + (e[m] ?? 0) * (CO2_G_PER_KWH[m] ?? 0), 0) / totalE : null,
-      loadMW: avg(combined(block, "load", regions, i)),
-      residualMW: avg(combined(block, "residual_load", regions, i)),
+      loadMW: avg(combined(block, "load", series, i)),
+      residualMW: avg(combined(block, "residual_load", series, i)),
       price: avg(block.series[PRICE_KEY]?.[i] ?? null),
       flowMW: avg(flowStat),
       matchedHours: block.matched ? block.matched[i]! / 4 : null,
@@ -100,7 +101,7 @@ export function deriveRows(
 export function carrierTotals(block: SeriesBlock, regions: readonly string[]): Record<CarrierKey, number> {
   const out = Object.fromEntries(CARRIERS.map((c) => [c.key, 0])) as Record<CarrierKey, number>;
   for (const m of GENERATION_METRICS) {
-    for (const region of regions) {
+    for (const region of dataRegions(regions)) {
       for (const s of block.series[smardSeriesKey(m, region)] ?? []) out[METRIC_TO_CARRIER[m]!] += energy(s) ?? 0;
     }
   }

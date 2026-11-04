@@ -13,6 +13,8 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  /** "user" (everyone who signs up) or "admin" (first-run setup, invitations, promotion). */
+  role: text("role").notNull().default("user"),
   createdAt: tstz("created_at").notNull().defaultNow(),
   updatedAt: tstz("updated_at").notNull().defaultNow(),
 });
@@ -100,7 +102,7 @@ export const rateLimit = pgTable("rate_limit", {
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
-export const registrationPurpose = pgEnum("registration_purpose", ["setup", "invite", "recovery"]);
+export const registrationPurpose = pgEnum("registration_purpose", ["setup", "invite", "recovery", "signup"]);
 
 /**
  * One-time tickets that allow registering a passkey without a session:

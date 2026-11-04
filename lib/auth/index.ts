@@ -7,9 +7,11 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as authSchema from "@/lib/db/auth-schema";
 import { authBaseURL } from "./base-url";
-import { consumeToken, countPasskeys, hasActiveAccount, peekToken } from "./registration";
+import { consumeToken, countPasskeys, hasActiveAccount, hasPassword, peekToken } from "./registration";
 
 export { authBaseURL };
+
+export const MAX_NAME_LENGTH = 100;
 
 export const SESSION_IDLE_SECONDS = 12 * 60 * 60;
 
@@ -34,9 +36,24 @@ function createAuth() {
       },
     }),
 
-    // Passkeys only: no e-mail/password login, no sign-up.
-    emailAndPassword: { enabled: false, disableSignUp: true },
-    disabledPaths: ["/sign-up/email", "/sign-in/email", "/sign-in/anonymous"],
+    // Everyone can create an account: with a passkey (our own signup ticket, see registration.ts)
+    // or classically with e-mail and password. There is no mail server, so addresses are not
+    // verified – accounts only grant saving private views; admin rights are given by admins.
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 10,
+      maxPasswordLength: 128,
+      autoSignIn: true,
+      requireEmailVerification: false,
+    },
+    disabledPaths: ["/sign-in/anonymous", "/change-email", "/request-password-reset", "/reset-password"],
+
+    user: {
+      additionalFields: {
+        // Never settable by clients; changed only by admins through /api/admin/users.
+        role: { type: "string", required: false, defaultValue: "user", input: false },
+      },
+    },
 
     // Sliding expiry: the session ends after 12 h without activity.
     session: {
@@ -57,6 +74,8 @@ function createAuth() {
         "/passkey/verify-authentication": { window: 60, max: 10 },
         "/passkey/generate-register-options": { window: 60, max: 10 },
         "/passkey/verify-registration": { window: 60, max: 10 },
+        "/sign-up/email": { window: 600, max: 5 },
+        "/sign-in/email": { window: 60, max: 10 },
       },
     },
 
@@ -69,18 +88,26 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
-          // Accounts are only created by our own setup/invite code, never through Better Auth.
-          before: async () => false,
+          // Self-service sign-ups are always normal users.
+          before: async (user) => ({ data: { ...user, role: "user" } }),
         },
       },
     },
 
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        // The last remaining passkey of a user can never be deleted (lock-out protection).
+        // Names come from the sign-up form (max. 100 characters there); enforce the same limit for
+        // direct API calls, so the admin list and the header cannot be flooded.
+        if (ctx.path === "/sign-up/email" || ctx.path === "/update-user") {
+          const name = (ctx.body as { name?: unknown } | undefined)?.name;
+          if (name !== undefined && (typeof name !== "string" || name.trim().length < 1 || name.trim().length > MAX_NAME_LENGTH)) {
+            throw new APIError("BAD_REQUEST", { message: `Name muss 1 bis ${MAX_NAME_LENGTH} Zeichen lang sein.` });
+          }
+        }
+        // The last passkey of an account without password can never be deleted (lock-out protection).
         if (ctx.path === "/passkey/delete-passkey") {
           const session = ctx.context.session ?? (await auth().api.getSession({ headers: ctx.headers ?? new Headers() }));
-          if (session && (await countPasskeys(session.user.id)) <= 1) {
+          if (session && (await countPasskeys(session.user.id)) <= 1 && !(await hasPassword(session.user.id))) {
             throw new APIError("BAD_REQUEST", { message: "Der letzte Passkey kann nicht gelöscht werden." });
           }
         }
@@ -94,8 +121,8 @@ function createAuth() {
         origin: baseURL.origin,
         authenticatorSelection: { residentKey: "required", userVerification: "required" },
         registration: {
-          // Passkey-first: without a session, a one-time registration ticket (setup,
-          // invite, recovery) passed as `context` decides which account gets the passkey.
+          // Passkey-first: without a session, a one-time registration ticket (setup, invite,
+          // recovery, self-service signup) passed as `context` decides which account gets it.
           requireSession: false,
           resolveUser: async ({ context }) => {
             const ticket = await peekToken(context);

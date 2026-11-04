@@ -39,6 +39,15 @@ test.describe.serial("Admin: Passkey-Login, Ersteinrichtung, Einstellungen", () 
   });
 
   test("Ersteinrichtung registriert den ersten Passkey und meldet an", async () => {
+    // Someone claimed the admin address with a normal (unverified) account beforehand:
+    // the first-run setup replaces that account instead of refusing the address.
+    psql(`DELETE FROM rate_limit`);
+    const squat = await page.request.post("/api/auth/sign-up/email", {
+      headers: { Origin: "http://localhost:3000" },
+      data: { name: "Squatter", email: ADMIN.email, password: "squatter-password" },
+    });
+    expect(squat.status()).toBe(200);
+    await context.clearCookies();
     await page.goto("/admin/setup");
     await page.getByLabel("Name").fill(ADMIN.name);
     await page.getByLabel("E-Mail").fill(ADMIN.email);
@@ -57,31 +66,94 @@ test.describe.serial("Admin: Passkey-Login, Ersteinrichtung, Einstellungen", () 
 
     await page.goto("/admin/datenquellen");
     await expect(page.getByRole("heading", { name: "Datenquellen", level: 1 })).toBeVisible();
+    // Admins find the admin area in the navigation pill (marked as current page).
+    await page.goto("/");
+    const adminTab = page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("link", { name: "Admin" });
+    await adminTab.click();
+    await expect(page).toHaveURL(/\/admin\//);
+    await expect(adminTab).toHaveAttribute("aria-current", "page");
   });
 
-  test("nach dem ersten aktiven Account ist die Registrierung gesperrt", async ({ request }) => {
+  test("nach dem ersten Admin ist die Ersteinrichtung gesperrt, Registrierungen erhalten nur die Rolle Nutzer", async ({ request, playwright }) => {
     expect((await request.get("/admin/setup")).status()).toBe(404);
     expect((await request.post("/api/setup", { data: { name: "Eve", email: "eve@example.test" } })).status()).toBe(404);
 
-    // Better Auth sign-up / password endpoints are disabled.
+    // Open sign-up with e-mail and password: always role "user", even if a role is sent along.
     const origin = { Origin: "http://localhost:3000" };
     const signUp = await request.post("/api/auth/sign-up/email", {
       headers: origin,
-      data: { name: "Eve", email: "eve@example.test", password: "correct-horse-battery" },
+      data: { name: "Eve", email: "eve@example.test", password: "correct-horse-battery", role: "admin" },
     });
-    expect(signUp.status()).toBeGreaterThanOrEqual(400);
-    const signIn = await request.post("/api/auth/sign-in/email", {
-      headers: origin,
-      data: { email: ADMIN.email, password: "irrelevant-password" },
-    });
+    expect(signUp.status()).toBe(200);
+    expect(psql(`SELECT role FROM "user" WHERE email = 'eve@example.test'`)).toBe("user");
+    expect(psql(`SELECT password FROM account WHERE user_id = (SELECT id FROM "user" WHERE email = 'eve@example.test')`)).not.toContain("correct-horse");
+    // Same e-mail twice is refused.
+    const again = await request.post("/api/auth/sign-up/email", { headers: origin, data: { name: "Eve 2", email: "eve@example.test", password: "another-password-1" } });
+    expect(again.status()).toBeGreaterThanOrEqual(400);
+
+    // A regular user has no admin rights: 403 on the API, redirect to the account page in the browser.
+    expect((await request.get("/api/admin/settings")).status()).toBe(403);
+    expect((await request.get("/api/admin/users")).status()).toBe(403);
+    const adminPage = await request.get("/admin/system", { maxRedirects: 0 });
+    expect(adminPage.status()).toBe(307);
+    expect(adminPage.headers().location).toContain("/konto?hinweis=keine-admin-rechte");
+
+    // Wrong password is refused.
+    const signIn = await request.post("/api/auth/sign-in/email", { headers: origin, data: { email: ADMIN.email, password: "irrelevant-password" } });
     expect(signIn.status()).toBeGreaterThanOrEqual(400);
 
     // Passkey registration without session and without a valid ticket is refused.
-    const options = await request.get("/api/auth/passkey/generate-register-options", { headers: origin });
+    const anon = await playwright.request.newContext({ baseURL: "http://localhost:3000" });
+    const options = await anon.get("/api/auth/passkey/generate-register-options", { headers: origin });
     expect(options.status()).toBeGreaterThanOrEqual(400);
-    const forged = await request.get("/api/auth/passkey/generate-register-options?context=forged-token", { headers: origin });
+    const forged = await anon.get("/api/auth/passkey/generate-register-options?context=forged-token", { headers: origin });
     expect(forged.status()).toBeGreaterThanOrEqual(400);
+    await anon.dispose();
 
+    expect(psql(`SELECT count(*) FROM "user"`)).toBe("2");
+  });
+
+  test("Admin befördert einen Nutzer, kann sich aber nicht selbst die Rechte entziehen", async ({ browser }) => {
+    await page.goto("/admin/nutzer");
+    const row = page.locator("tr", { hasText: "eve@example.test" });
+    await expect(row).toContainText("Nutzer");
+    page.once("dialog", (d) => d.accept());
+    await row.getByRole("button", { name: "Zum Admin befördern" }).click();
+    await expect(page.getByText("Eve ist jetzt Admin.")).toBeVisible();
+    expect(psql(`SELECT role FROM "user" WHERE email = 'eve@example.test'`)).toBe("admin");
+
+    // Eve now reaches the admin area with her password.
+    const ctx = await browser.newContext();
+    const eve = await ctx.newPage();
+    await eve.goto("/anmelden?next=/admin/system");
+    await eve.getByLabel("E-Mail").fill("eve@example.test");
+    await eve.getByLabel("Passwort").fill("correct-horse-battery");
+    await eve.getByRole("button", { name: "Mit Passwort anmelden" }).click();
+    await expect(eve).toHaveURL(/\/admin\/system/);
+    await expect(eve.getByRole("heading", { name: "System", level: 1 })).toBeVisible();
+
+    // Self-demotion is refused; demoting another admin works.
+    const meId = psql(`SELECT id FROM "user" WHERE email = '${ADMIN.email}'`);
+    const eveId = psql(`SELECT id FROM "user" WHERE email = 'eve@example.test'`);
+    expect((await browserFetch(page, "/api/admin/users", { method: "PATCH", body: { id: meId, role: "user" } })).status).toBe(409);
+    expect((await browserFetch(page, "/api/admin/users", { method: "PATCH", body: { id: eveId, role: "user" } })).status).toBe(200);
+    // Demoted: Eve's session immediately loses access.
+    expect((await browserFetch(eve, "/api/admin/settings")).status).toBe(403);
+    await ctx.close();
+
+    // A pending invitation (admin without passkey) does not count as remaining admin, and an actor
+    // who lost the admin role meanwhile is refused even with an old, already authorised request.
+    psql(`INSERT INTO "user" (id, name, email, role) VALUES ('pending-admin', 'Pending', 'pending@example.test', 'admin')`);
+    psql(`UPDATE "user" SET role = 'admin' WHERE id = '${eveId}'`);
+    psql(`UPDATE "user" SET role = 'user' WHERE id = '${meId}'`);
+    expect((await browserFetch(page, "/api/admin/users", { method: "PATCH", body: { id: eveId, role: "user" } })).status).toBe(403);
+    psql(`UPDATE "user" SET role = 'admin' WHERE id = '${meId}'`);
+    psql(`UPDATE "user" SET role = 'user' WHERE id = '${eveId}'`);
+    psql(`DELETE FROM "user" WHERE id = 'pending-admin'`);
+
+    // Delete the account again (cascades to sessions and views).
+    expect((await browserFetch(page, `/api/admin/users?id=${encodeURIComponent(eveId)}`, { method: "DELETE" })).status).toBe(204);
+    expect((await browserFetch(page, `/api/admin/users?id=${encodeURIComponent(meId)}`, { method: "DELETE" })).status).toBe(409);
     expect(psql(`SELECT count(*) FROM "user"`)).toBe("1");
   });
 
@@ -89,8 +161,11 @@ test.describe.serial("Admin: Passkey-Login, Ersteinrichtung, Einstellungen", () 
     const anon = await browser.newContext();
     const p = await anon.newPage();
     await p.goto("/admin/system");
-    await expect(p).toHaveURL(/\/admin\/login\?next=%2Fadmin%2Fsystem/);
-    await expect(p.getByLabel(/Passkey auswählen/)).toHaveAttribute("autocomplete", "username webauthn");
+    await expect(p).toHaveURL(/\/anmelden\?next=%2Fadmin%2Fsystem/);
+    await expect(p.getByLabel("E-Mail")).toHaveAttribute("autocomplete", "username webauthn");
+    // The old admin login address forwards to the common sign-in page.
+    await p.goto("/admin/login");
+    await expect(p).toHaveURL(/\/anmelden\?next=%2Fadmin$/);
     await anon.close();
   });
 
@@ -107,13 +182,13 @@ test.describe.serial("Admin: Passkey-Login, Ersteinrichtung, Einstellungen", () 
 
     await p.goto("/admin/system");
     await p.getByRole("button", { name: "Abmelden" }).click();
-    await expect(p).toHaveURL(/\/admin\/login/);
+    await expect(p).toHaveURL(/\/anmelden$/);
     await p.goto("/admin/system");
-    await expect(p).toHaveURL(/\/admin\/login\?next=%2Fadmin%2Fsystem/);
+    await expect(p).toHaveURL(/\/anmelden\?next=%2Fadmin%2Fsystem/);
 
     await p.getByRole("button", { name: "Mit Passkey anmelden" }).click();
     await expect(p).toHaveURL(/\/admin\/system/);
-    await expect(p.getByRole("heading", { name: "Meine Passkeys" })).toBeVisible();
+    await expect(p.getByRole("heading", { name: "System", level: 1 })).toBeVisible();
     expect(psql(`SELECT count(*) FROM passkey WHERE last_used_at IS NOT NULL`)).toBe("1");
 
     // Copy the credential (with its increased signature counter) back, otherwise the server's
@@ -143,7 +218,7 @@ test.describe.serial("Admin: Passkey-Login, Ersteinrichtung, Einstellungen", () 
   });
 
   test("der letzte Passkey kann nicht gelöscht werden", async () => {
-    await page.goto("/admin/system");
+    await page.goto("/konto");
     const list = await browserFetch(page, "/api/auth/passkey/list-user-passkeys");
     const [only] = JSON.parse(list.text) as { id: string }[];
     const del = await browserFetch(page, "/api/auth/passkey/delete-passkey", { method: "POST", body: { id: only!.id } });
@@ -153,13 +228,13 @@ test.describe.serial("Admin: Passkey-Login, Ersteinrichtung, Einstellungen", () 
 
   test("zweiten Passkey hinzufügen, umbenennen und wieder löschen", async () => {
     // Same authenticator twice is refused (excludeCredentials) – as on a real device.
-    await page.goto("/admin/system");
+    await page.goto("/konto");
     await page.getByRole("button", { name: "Passkey hinzufügen" }).click();
     await expect(page.locator("#passkeys").getByRole("alert")).toContainText("bereits ein Passkey registriert");
 
     // Second "device": new tab with its own virtual authenticator, same session.
     const { page: second } = await newPageWithAuthenticator(context);
-    await second.goto("/admin/system");
+    await second.goto("/konto");
     await second.getByRole("button", { name: "Passkey hinzufügen" }).click();
     await expect(second.locator("#passkeys tbody tr")).toHaveCount(2);
     await second.close();
@@ -245,6 +320,7 @@ test.describe.serial("Admin: Passkey-Login, Ersteinrichtung, Einstellungen", () 
     await expect(device.getByRole("heading", { name: "Zugang wiederherstellen" })).toBeVisible();
     await device.getByRole("button", { name: "Passkey registrieren" }).click();
     await expect(device).toHaveURL(/\/admin\/system/);
+    await device.goto("/konto");
     await expect(device.locator("#passkeys tbody tr")).toHaveCount(2);
     await lost.close();
   });

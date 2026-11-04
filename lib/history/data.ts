@@ -8,7 +8,7 @@ import { flowKey, NET_IMPORT_KEY, PRICE_KEY } from "@/lib/sources/energy-charts"
 import { smardSeriesKey } from "@/lib/sources/smard";
 import { berlinDateToMs } from "@/lib/time";
 import { fetchInstalledPower } from "./installed";
-import { type Condition, effectiveResolution, type HistoryQuery, previousYear, type Resolution } from "./query";
+import { type Condition, dataRegions, effectiveResolution, type HistoryQuery, previousYear, type Resolution } from "./query";
 import type { SeriesBlock, Stat, TimeseriesResponse } from "./types";
 
 /*
@@ -30,7 +30,7 @@ const SQL_OP = { lt: "<", le: "<=", gt: ">", ge: ">=" } as const;
 /** Series keys needed for a query. */
 export function seriesKeysFor(q: HistoryQuery, publicMode: boolean): string[] {
   const keys = new Set<string>();
-  for (const r of q.regions) {
+  for (const r of dataRegions(q.regions)) {
     for (const m of GENERATION_METRICS) keys.add(smardSeriesKey(m, r));
     if (q.metrics.includes("load")) keys.add(smardSeriesKey("load", r));
     if (q.metrics.includes("residual")) keys.add(smardSeriesKey("residual_load", r));

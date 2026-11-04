@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { psql } from "./helpers";
+import { ORIGIN, psql, signUpUser } from "./helpers";
 
 /*
  * Phase 5: "Historie". Uses periods that the earlier specs / backfill imported:
@@ -74,6 +74,74 @@ test.describe("Seite „Historie“", () => {
     await expect(region.getByRole("button", { name: "Keine" })).toBeVisible();
   });
 
+  test("eigene Datumsauswahl: Eingabe als TT.MM.JJJJ, Kalender per Maus und Tastatur", async ({ page }) => {
+    await page.goto("/historie?from=2025-10-01&to=2025-10-31&res=day");
+    const from = page.getByLabel("Von", { exact: true });
+    await expect(from).toHaveValue("01.10.2025");
+
+    // Typing in German format
+    await from.fill("5.10.2025");
+    await from.press("Enter");
+    await expect(page).toHaveURL(/from=2025-10-05/);
+    // Invalid input is flagged and not applied
+    await from.fill("31.02.2025");
+    await from.press("Enter");
+    await expect(page.getByText("Bitte als TT.MM.JJJJ eingeben.")).toBeVisible();
+    await from.press("Escape");
+    await expect(from).toHaveValue("05.10.2025");
+
+    // Calendar: opens on the selected day, period highlighted, later days than "Bis" disabled
+    await page.getByRole("button", { name: "Von: Kalender öffnen" }).click();
+    const dialog = page.getByRole("dialog", { name: "Von wählen" });
+    await expect(dialog.getByRole("button", { name: "Sonntag, 5. Oktober 2025" })).toBeFocused();
+    await expect(dialog.getByRole("button", { name: "Samstag, 1. November 2025" })).toBeDisabled();
+    // Keyboard: one week back, confirm with Enter
+    await page.keyboard.press("ArrowUp");
+    await expect(dialog.getByRole("button", { name: "Sonntag, 28. September 2025" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/from=2025-09-28/);
+    await expect(page.getByRole("button", { name: "Von: Kalender öffnen" })).toBeFocused();
+
+    // Year jump via select, then pick with the mouse
+    await page.getByRole("button", { name: "Von: Kalender öffnen" }).click();
+    await dialog.getByLabel("Jahr", { exact: true }).selectOption("2016");
+    await dialog.getByLabel("Monat", { exact: true }).selectOption({ label: "Feb" });
+    await dialog.getByRole("button", { name: "Montag, 29. Februar 2016" }).click();
+    await expect(from).toHaveValue("29.02.2016");
+    // The URL follows once the server has rendered ~10 years (can take a few seconds).
+    await expect(page).toHaveURL(/from=2016-02-29/, { timeout: 30_000 });
+    // Escape closes without change
+    await page.getByRole("button", { name: "Bis: Kalender öffnen" }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page).toHaveURL(/to=2025-10-31/);
+  });
+
+  test("Kalender wird von der Filterspalte nicht abgeschnitten (16:9, Laptop, Handy)", async ({ browser }) => {
+    for (const [width, height] of [[1920, 960], [1440, 760], [1280, 640], [375, 700]] as const) {
+      const ctx = await browser.newContext({ viewport: { width, height } });
+      const page = await ctx.newPage();
+      await page.goto("/historie?from=2025-10-06&to=2025-10-24&res=day");
+      if (width < 1024) await page.getByRole("button", { name: /^Filter/ }).click();
+      for (const name of ["Von", "Bis"]) {
+        await page.getByRole("button", { name: `${name}: Kalender öffnen` }).click();
+        const dialog = page.getByRole("dialog", { name: `${name} wählen` });
+        await expect(dialog).toBeVisible();
+        const box = (await dialog.boundingBox())!;
+        expect(box.x, `${width}×${height} ${name}`).toBeGreaterThanOrEqual(0);
+        expect(box.y).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(width);
+        expect(box.y + box.height).toBeLessThanOrEqual(height);
+        // Nothing covers the calendar: its corner buttons receive the clicks.
+        await expect(dialog.getByRole("button", { name: "Schließen" })).toBeInViewport();
+        await dialog.getByRole("button", { name: "Schließen" }).click();
+        await expect(dialog).toBeHidden();
+      }
+      await ctx.close();
+    }
+  });
+
   test("Zurücksetzen und Schnellwahl", async ({ page }) => {
     await page.goto("/historie?from=2015-01-01&to=2015-12-31&res=month");
     await page.getByRole("button", { name: "Zurücksetzen" }).click();
@@ -92,19 +160,33 @@ test.describe("Seite „Historie“", () => {
   });
 
   test("Aggregate stimmen mit den Rohdaten überein (Tage in Berliner Zeit)", async ({ request }) => {
-    const d = await (await request.get(`/api/timeseries?${WEEK}&res=day`)).json();
+    // A single control area is read from its own series.
+    const d = await (await request.get(`/api/timeseries?${WEEK}&res=day&regions=Amprion&metrics=load`)).json();
     const i = d.main.labels.indexOf("2025-10-26");
     const [sum, count] = d.main.series["smard:load:Amprion"][i];
     expect(count).toBe(100); // 25-hour day
     const raw = psql(`SELECT round(sum(o.value)::numeric, 2), count(*) FROM observations o JOIN series s ON s.id = o.series_id
       WHERE s.key = 'smard:load:Amprion' AND (o.ts AT TIME ZONE 'Europe/Berlin')::date = '2025-10-26'`);
     expect(raw).toBe(`${(Math.round(sum * 100) / 100).toFixed(2)}|100`);
-    // Default selection = all four control areas; their sum matches Germany's grid load.
     expect(Object.keys(d.main.series).some((k) => k.endsWith(":DE") && k.startsWith("smard:"))).toBe(false);
-    const zones = ["50Hertz", "Amprion", "TenneT", "TransnetBW"].reduce((a, z) => a + d.main.series[`smard:load:${z}`][i][0], 0);
-    const de = Number(psql(`SELECT sum(o.value) FROM observations o JOIN series s ON s.id = o.series_id
-      WHERE s.key = 'smard:load:DE' AND (o.ts AT TIME ZONE 'Europe/Berlin')::date = '2025-10-26'`));
-    expect(Math.abs(zones - de) / de).toBeLessThan(0.02);
+
+    // Default selection = all four control areas: the official Germany total is used (the zone
+    // series have gaps in the source, e.g. Amprion "Sonstige Konventionelle" in 2017).
+    const all = await (await request.get(`/api/timeseries?${WEEK}&res=day&metrics=load`)).json();
+    const smardKeys = Object.keys(all.main.series).filter((k) => k.startsWith("smard:"));
+    expect(smardKeys.length).toBeGreaterThan(0);
+    expect(smardKeys.every((k) => k.endsWith(":DE"))).toBe(true);
+    const de = psql(`SELECT round(sum(o.value)::numeric, 2) FROM observations o JOIN series s ON s.id = o.series_id
+      WHERE s.key = 'smard:load:DE' AND (o.ts AT TIME ZONE 'Europe/Berlin')::date = '2025-10-26'`);
+    expect(Number(de)).toBeCloseTo(all.main.series["smard:load:DE"][all.main.labels.indexOf("2025-10-26")][0], 1);
+  });
+
+  test("alle vier Regelzonen: „Sonstige“ bricht zum 01.01.2017 nicht ein (Lücke in SMARD-Zonendaten)", async ({ request }) => {
+    const d = await (await request.get("/api/timeseries?from=2016-12-28&to=2017-01-04&res=day&carriers=other")).json();
+    const other = d.main.series["smard:other_conventional:DE"].map((s: [number, number]) => s[0] / s[1]);
+    const before = other[d.main.labels.indexOf("2016-12-31")];
+    const after = other[d.main.labels.indexOf("2017-01-01")];
+    expect(after / before).toBeGreaterThan(0.7);
   });
 
   test("Bedingungen werden je Viertelstunde (UND) ausgewertet und erst danach aggregiert", async ({ request }) => {
@@ -132,9 +214,9 @@ test.describe("Seite „Historie“", () => {
     expect(both.kpi.matchedHours).toBeLessThanOrEqual(neg.kpi.matchedHours);
 
     // Aggregation over the matching quarter hours only: wind energy on the weekend
-    const windSum = we.main.series["smard:wind_onshore:Amprion"].reduce((a: number, s: [number, number] | null) => a + (s?.[0] ?? 0), 0);
+    const windSum = we.main.series["smard:wind_onshore:DE"].reduce((a: number, s: [number, number] | null) => a + (s?.[0] ?? 0), 0);
     const rawWind = Number(
-      psql(`SELECT sum(o.value) FROM observations o JOIN series s ON s.id = o.series_id WHERE s.key = 'smard:wind_onshore:Amprion'
+      psql(`SELECT sum(o.value) FROM observations o JOIN series s ON s.id = o.series_id WHERE s.key = 'smard:wind_onshore:DE'
         AND (o.ts AT TIME ZONE 'Europe/Berlin')::date IN ('2025-10-25', '2025-10-26')`),
     );
     expect(windSum).toBeCloseTo(rawWind, 3);
@@ -183,20 +265,65 @@ test.describe("Seite „Historie“", () => {
     expect(text).toContain("SMARD.de");
   });
 
-  test("Ansicht speichern und wieder laden", async ({ page, request }) => {
-    expect((await request.post("/api/views", { data: { name: "", params: "x" } })).status()).toBe(400);
-    const name = `Test-Ansicht ${Date.now()}`;
-    await page.goto("/historie?from=2015-01-01&to=2015-12-31&res=year&carriers=lignite,hardcoal");
-    await page.getByRole("button", { name: "Ansicht speichern" }).click();
-    await page.getByLabel("Name der Ansicht").fill(name);
-    await page.getByRole("button", { name: "Speichern", exact: true }).click();
-    await expect(page.getByText(`Ansicht „${name}“ gespeichert.`)).toBeVisible();
+  test("Gäste sehen die Vorlagen „Standard“ und „Alle Daten“ und einen Anmelde-Hinweis statt „Speichern“", async ({ page, request }) => {
+    expect((await request.post("/api/views", { data: { name: "Gast", params: "res=day" } })).status()).toBe(401);
+    expect(await (await request.get("/api/views")).json()).toEqual({ views: [] });
 
-    await page.goto("/historie");
+    await page.goto("/historie?from=2015-01-01&to=2015-12-31&res=year");
+    await expect(page.getByRole("button", { name: "Ansicht speichern" })).toHaveCount(0);
+    await expect(page.getByText("Du bist als Gast unterwegs.")).toBeVisible();
+    const signIn = page.getByRole("link", { name: "Anmelden zum Speichern" });
+    await expect(signIn).toHaveAttribute("href", /\/anmelden\?next=%2Fhistorie%3Ffrom%3D2015-01-01/);
+
+    // Templates: "Alle Daten" (always up to today) and "Standard" (last 30 days).
     const select = page.getByRole("combobox", { name: "Gespeicherte Ansicht" });
+    await select.selectOption({ label: "Alle Daten (seit 2015)" });
+    await expect(page).toHaveURL(/from=2015-01-01&to=\d{4}-\d{2}-\d{2}&res=month&metrics=load%2Cresidual%2Cprice%2Cco2%2CnetImport%2Cinstalled/, { timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Installierte Leistung" })).toBeVisible();
+    await select.selectOption({ label: "Standard (letzte 30 Tage)" });
+    await expect(page).toHaveURL(/\/historie\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}&metrics=$/);
+    await expect(page.getByRole("heading", { name: "Netzlast und Residuallast" })).toHaveCount(0);
+  });
+
+  test("Ansicht speichern und wieder laden – privat je Konto", async ({ browser }) => {
+    const ctxA = await browser.newContext();
+    const a = await ctxA.newPage();
+    const stamp = Date.now();
+    await signUpUser(a, "Ansichten A", `views-a-${stamp}@example.test`);
+    expect((await a.request.post("/api/views", { headers: ORIGIN, data: { name: "", params: "x" } })).status()).toBe(400);
+
+    const name = `Test-Ansicht ${stamp}`;
+    await a.goto("/historie?from=2015-01-01&to=2015-12-31&res=year&carriers=lignite,hardcoal");
+    await a.getByRole("button", { name: "Ansicht speichern" }).click();
+    await a.getByLabel("Name der Ansicht").fill(name);
+    await a.getByRole("button", { name: "Speichern", exact: true }).click();
+    await expect(a.getByText(`Ansicht „${name}“ gespeichert.`)).toBeVisible();
+
+    await a.goto("/historie");
+    const select = a.getByRole("combobox", { name: "Gespeicherte Ansicht" });
     await select.selectOption({ label: name });
-    await expect(page).toHaveURL(/from=2015-01-01&to=2015-12-31&res=year&carriers=lignite%2Chardcoal|carriers=lignite,hardcoal/);
-    psql(`DELETE FROM saved_views WHERE name = '${name}'`);
+    await expect(a).toHaveURL(/from=2015-01-01&to=2015-12-31&res=year&carriers=lignite%2Chardcoal|carriers=lignite,hardcoal/);
+
+    // A second account does not see (or delete) A's view.
+    const ctxB = await browser.newContext();
+    const b = await ctxB.newPage();
+    await signUpUser(b, "Ansichten B", `views-b-${stamp}@example.test`);
+    expect(((await (await b.request.get("/api/views")).json()) as { views: unknown[] }).views).toHaveLength(0);
+    await b.goto("/historie");
+    await expect(b.getByRole("option", { name })).toHaveCount(0);
+    const id = psql(`SELECT id FROM saved_views WHERE name = '${name}'`);
+    expect((await b.request.delete(`/api/views?id=${id}`, { headers: ORIGIN })).status()).toBe(404);
+
+    // A deletes it on the account page.
+    await a.goto("/konto");
+    a.once("dialog", (d) => d.accept());
+    await a.getByRole("button", { name: `Ansicht ${name} löschen` }).click();
+    await expect(a.getByText("Noch keine Ansichten.")).toBeVisible();
+    expect(psql(`SELECT count(*) FROM saved_views WHERE name = '${name}'`)).toBe("0");
+
+    psql(`DELETE FROM "user" WHERE email LIKE 'views-%-${stamp}@example.test'`);
+    await ctxA.close();
+    await ctxB.close();
   });
 
   test("Heatmap: Größe umschalten, Tabellen-Alternative vorhanden", async ({ page }) => {

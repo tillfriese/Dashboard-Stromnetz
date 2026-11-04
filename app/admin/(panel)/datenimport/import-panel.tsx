@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -178,6 +179,10 @@ function StartForm(props: {
 }) {
   const id = props.title.replace(/\W+/g, "-").toLowerCase();
   const [busy, setBusy] = useState(false);
+  // Defaults follow the loaded settings until the user changes a checkbox; a selection made
+  // before the settings arrive is never reset.
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const checked = picked ?? props.defaultSources;
   return (
     <section className="card p-6" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`} className="font-semibold tracking-tight">
@@ -199,14 +204,8 @@ function StartForm(props: {
         }}
       >
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm font-medium text-slate-700">
-            Von
-            <input type="date" name="from" required defaultValue={props.defaultFrom} min="2015-01-01" max={props.today} className="mt-1.5 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">
-            Bis
-            <input type="date" name="to" required defaultValue={props.today} min="2015-01-01" max={props.today} className="mt-1.5 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-          </label>
+          <DatePicker label="Von" name="from" required defaultValue={props.defaultFrom} min="2015-01-01" max={props.today} labelClassName="text-sm font-medium text-slate-700" />
+          <DatePicker label="Bis" name="to" required defaultValue={props.today} min="2015-01-01" max={props.today} align="end" labelClassName="text-sm font-medium text-slate-700" />
         </div>
         <fieldset>
           <legend className="text-sm font-medium text-slate-700">Quellen</legend>
@@ -217,8 +216,8 @@ function StartForm(props: {
                   type="checkbox"
                   name="sources"
                   value={s}
-                  defaultChecked={props.defaultSources.includes(s)}
-                  key={`${s}-${props.defaultSources.includes(s)}`}
+                  checked={checked.includes(s)}
+                  onChange={(e) => setPicked(e.target.checked ? [...checked, s] : checked.filter((x) => x !== s))}
                   className="mt-0.5 size-4 rounded border-slate-300 accent-indigo-600"
                 />
                 <span>

@@ -14,7 +14,7 @@ for (const scheme of ["light", "dark"] as const) {
   test(`öffentliche Seiten ohne WCAG-Verstöße (${scheme})`, async ({ browser }) => {
     const ctx = await browser.newContext({ colorScheme: scheme });
     const page = await ctx.newPage();
-    for (const path of ["/", "/historie", "/historie?from=2015-01-01&to=2025-12-31&res=year&cond=price.lt.0", "/impressum", "/gibt-es-nicht", "/admin/setup"]) {
+    for (const path of ["/", "/historie", "/historie?from=2015-01-01&to=2025-12-31&res=year&cond=price.lt.0", "/impressum", "/anmelden", "/anmelden?modus=registrieren", "/gibt-es-nicht", "/admin/setup"]) {
       await page.goto(path);
       await page.waitForLoadState("networkidle");
       await audit(page, `${scheme} ${path}`);
@@ -32,7 +32,7 @@ test("Admin-Bereich ohne WCAG-Verstöße (hell und dunkel)", async ({ browser })
     const ctx = await browser.newContext({ colorScheme: scheme });
     const { page } = await newPageWithAuthenticator(ctx);
     await setupAdmin(page, "A11y", "a11y@example.test");
-    for (const path of ["/admin/datenquellen", "/admin/datenimport", "/admin/system", "/admin/besucher"]) {
+    for (const path of ["/admin/datenquellen", "/admin/datenimport", "/admin/nutzer", "/admin/system", "/admin/besucher", "/konto"]) {
       await page.goto(path);
       await page.waitForLoadState("networkidle");
       await audit(page, `${scheme} ${path}`);

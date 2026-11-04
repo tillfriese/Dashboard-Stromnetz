@@ -10,7 +10,7 @@ export default async function RegisterPage({ searchParams }: PageProps<"/admin/r
   const raw = (await searchParams).token;
   const token = typeof raw === "string" ? raw : null;
   const ticket = await peekToken(token);
-  if (!ticket || !token || ticket.purpose === "setup") {
+  if (!ticket || !token || ticket.purpose === "setup" || ticket.purpose === "signup") {
     return (
       <AuthCard title="Link ungültig">
         <Alert tone="error">Dieser Link ist ungültig, abgelaufen oder wurde bereits verwendet.</Alert>

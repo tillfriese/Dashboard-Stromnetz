@@ -50,7 +50,7 @@ describe("history query (URL state)", () => {
 
   it("keeps default values out of the URL", () => {
     const p = serializeQuery(defaultQuery(NOW), NOW);
-    expect([...p.keys()]).toEqual(["from", "to"]);
+    expect([...p.keys()]).toEqual(["from", "to", "metrics"]); // metrics always explicit (legacy rule)
   });
 
   it("falls back to defaults for invalid input and clamps the range", () => {
@@ -114,5 +114,32 @@ describe("completeRows", () => {
     const row = (quarters: number) => ({ quarters }) as Row;
     const rows = [row(384), row(672), row(672), row(668), row(676), row(96)];
     expect(completeRows(rows).map((r) => r.quarters)).toEqual([672, 672, 668, 676]);
+  });
+});
+
+describe("dataRegions", () => {
+  it("uses the official Germany total when all four zones are selected", async () => {
+    const { dataRegions, ZONE_KEYS } = await import("./query");
+    expect(dataRegions([...ZONE_KEYS])).toEqual(["DE"]);
+    expect(dataRegions(["Amprion", "TenneT"])).toEqual(["Amprion", "TenneT"]);
+  });
+});
+
+describe("PRESETS", () => {
+  it("Standard = last 30 days without extra metric charts, Alle Daten = since 2015, monthly, all metrics", async () => {
+    const { parseQuery, presetSearch } = await import("./query");
+    const std = parseQuery(new URLSearchParams(presetSearch("standard", "2026-11-04")!), "2026-11-04");
+    expect([std.from, std.to, std.res, std.metrics, std.heatYear]).toEqual(["2026-10-06", "2026-11-04", "auto", [], null]);
+    // The default view (no URL parameters) is the "Standard" template.
+    expect(presetSearch("standard", "2026-11-04")).toBe("from=2026-10-06&to=2026-11-04&metrics=");
+    expect(parseQuery(new URLSearchParams(""), "2026-11-04").metrics).toEqual([]);
+  });
+
+  it("old links without metrics parameter keep showing the grid load", async () => {
+    const { parseQuery, presetSearch, METRICS } = await import("./query");
+    expect(parseQuery(new URLSearchParams("from=2025-01-01&to=2025-12-31"), "2026-11-04").metrics).toEqual(["load"]);
+    expect(parseQuery(new URLSearchParams("from=2025-01-01&metrics="), "2026-11-04").metrics).toEqual([]);
+    const all = parseQuery(new URLSearchParams(presetSearch("all", "2027-03-01")!), "2027-03-01");
+    expect([all.from, all.to, all.res, all.metrics]).toEqual(["2015-01-01", "2027-03-01", "month", [...METRICS]]);
   });
 });

@@ -99,6 +99,16 @@ export function describeCondition(c: Condition): string {
 
 /** The four control areas. Selected zones are summed; all four together = Germany. */
 export const ZONE_KEYS = ["50Hertz", "Amprion", "TenneT", "TransnetBW"] as const;
+
+/**
+ * SMARD series actually read for a zone selection. With all four zones selected the official
+ * Germany total ("DE") is used instead of the sum of the zones: the zone series have gaps and
+ * outliers in the source (e.g. Amprion "Sonstige Konventionelle" is empty from 31.12.2016 to the
+ * end of 2017 and implausibly high before), while the DE series is complete and consistent.
+ */
+export function dataRegions(regions: readonly string[]): readonly string[] {
+  return ZONE_KEYS.every((z) => regions.includes(z)) ? ["DE"] : regions;
+}
 export type ZoneRegion = (typeof ZONE_KEYS)[number];
 
 export function regionLabel(regions: readonly string[]): string {
@@ -137,13 +147,33 @@ export function defaultQuery(now = today()): HistoryQuery {
     compare: false,
     regions: [...ZONE_KEYS],
     carriers: ALL_CARRIERS,
-    metrics: ["load"],
+    metrics: [],
     flow: "sum",
     conditions: [],
     chart: "stacked",
     heat: "residual",
     heatYear: null,
   };
+}
+
+/**
+ * Templates offered to everyone (guests included) in the "Gespeicherte Ansicht" menu. They are
+ * computed from today's date when selected, so they always cover the latest data.
+ *  - Standard: the default view (last 30 days, no extra metric charts, heatmap of the current year)
+ *  - Alle Daten: the complete stock since 2015, monthly, all metrics
+ */
+export const PRESETS = [
+  { id: "standard", label: "Standard (letzte 30 Tage)", query: (now: string): HistoryQuery => defaultQuery(now) },
+  {
+    id: "all",
+    label: "Alle Daten (seit 2015)",
+    query: (now: string): HistoryQuery => ({ ...defaultQuery(now), from: DATA_START, res: "month", metrics: [...METRICS] }),
+  },
+] as const;
+
+export function presetSearch(id: string, now = today()): string | null {
+  const preset = PRESETS.find((p) => p.id === id);
+  return preset ? serializeQuery(preset.query(now), now).toString() : null;
 }
 
 const isDate = (s: string | null | undefined): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
@@ -170,7 +200,11 @@ export function parseQuery(params: URLSearchParams, now = today()): HistoryQuery
             ? validRegions
             : undefined;
   const carriers = list(params.get("carriers"))?.filter((c): c is CarrierKey => ALL_CARRIERS.includes(c as CarrierKey));
-  const metrics = list(params.get("metrics"))?.filter((m): m is Metric => METRICS.includes(m as Metric));
+  // Until Nov 2026 the default showed the grid load. Links and saved views from that time have
+  // no "metrics" parameter, so "parameters but no metrics" keeps meaning grid load; only the bare
+  // /historie (no parameters at all) opens the new default without metric charts.
+  const legacyMetrics: Metric[] | undefined = params.has("metrics") || [...params.keys()].length === 0 ? undefined : ["load"];
+  const metrics = list(params.get("metrics"))?.filter((m): m is Metric => METRICS.includes(m as Metric)) ?? legacyMetrics;
   const flow = params.get("flow");
   const chart = params.get("chart");
   const heat = params.get("heat");
@@ -206,7 +240,8 @@ export function serializeQuery(q: HistoryQuery, now = today()): URLSearchParams 
   if (q.compare) p.set("compare", "1");
   if (q.regions.join() !== d.regions.join()) p.set("regions", q.regions.join(","));
   if (q.carriers.join() !== d.carriers.join()) p.set("carriers", q.carriers.join(","));
-  if (q.metrics.join() !== d.metrics.join()) p.set("metrics", q.metrics.join(","));
+  // Always written (also empty), see the legacy rule in parseQuery.
+  p.set("metrics", q.metrics.join(","));
   if (q.flow !== "sum") p.set("flow", q.flow);
   for (const c of q.conditions) p.append("cond", serializeCondition(c));
   if (q.chart !== "stacked") p.set("chart", q.chart);

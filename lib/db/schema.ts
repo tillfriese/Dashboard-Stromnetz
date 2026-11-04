@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { user } from "./auth-schema";
 import {
   bigint,
   bigserial,
@@ -99,12 +100,20 @@ export const settings = pgTable("settings", {
   updatedAt: tstz("updated_at").notNull().defaultNow(),
 });
 
-export const savedViews = pgTable("saved_views", {
+/** Saved filter views of the "Historie" page – private to their owner. */
+export const savedViews = pgTable(
+  "saved_views",
+  {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   query: jsonb("query").notNull(),
   createdAt: tstz("created_at").notNull().defaultNow(),
-});
+  },
+  (t) => [index("saved_views_user_idx").on(t.userId, t.createdAt.desc())],
+);
 
 /**
  * Visitor sessions (cookieless). `id` is a hash of IP + UA + daily salt; the IP

@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { addDays, format, parseISO } from "date-fns";
 import { useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -47,14 +48,12 @@ export function VisitorsPanel({ today }: { today: string }) {
           <Segmented label="Zeitraum" value={preset} options={PRESETS} onChange={setPreset} />
           {preset === "custom" ? (
             <div className="flex gap-2">
-              <label className="text-xs text-slate-500">
-                Von
-                <input type="date" value={custom.from} max={custom.to} onChange={(e) => e.target.value && setCustom((c) => ({ ...c, from: e.target.value }))} className="mt-1 block rounded-xl border border-slate-200 bg-surface px-3 py-1.5 text-sm" />
-              </label>
-              <label className="text-xs text-slate-500">
-                Bis
-                <input type="date" value={custom.to} min={custom.from} max={today} onChange={(e) => e.target.value && setCustom((c) => ({ ...c, to: e.target.value }))} className="mt-1 block rounded-xl border border-slate-200 bg-surface px-3 py-1.5 text-sm" />
-              </label>
+              <div className="w-40">
+                <DatePicker label="Von" value={custom.from} max={custom.to} rangeStart={custom.from} rangeEnd={custom.to} onChange={(from) => setCustom((c) => ({ ...c, from }))} />
+              </div>
+              <div className="w-40">
+                <DatePicker label="Bis" value={custom.to} min={custom.from} max={today} rangeStart={custom.from} rangeEnd={custom.to} align="end" onChange={(to) => setCustom((c) => ({ ...c, to }))} />
+              </div>
             </div>
           ) : null}
         </div>

@@ -105,7 +105,7 @@ export function MetricCharts({ data, rows: base, query: q }: { data: TimeseriesR
         key="installed"
         id="m-installed"
         title="Installierte Leistung"
-        sub="GW am Monatsende, Deutschland · Quelle: Energy-Charts (CC BY 4.0)"
+        sub="GW, Deutschland · Wind, PV, Biomasse monatlich, übrige Energieträger als Jahresendstand · Quelle: Energy-Charts (CC BY 4.0)"
         unit="GW"
         rows={rows}
         series={carriers.map((c) => ({ key: c.key, name: c.label, color: c.color }))}

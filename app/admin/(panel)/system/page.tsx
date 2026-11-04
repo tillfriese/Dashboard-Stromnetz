@@ -1,10 +1,10 @@
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { formatBerlin, formatNumber } from "@/lib/format";
-import { listPasskeys, systemInfo } from "@/lib/admin/system";
+import Link from "next/link";
+import { systemInfo } from "@/lib/admin/system";
 import { listPendingInvites } from "@/lib/auth/registration";
 import { getAdminSession } from "@/lib/auth/session";
 import { InvitesCard } from "./invites-card";
-import { PasskeysCard } from "./passkeys-card";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +29,19 @@ function formatUptime(s: number) {
 export default async function SystemPage() {
   const session = await getAdminSession();
   if (!session) return null; // layout already redirects
-  const [passkeys, invites, info] = await Promise.all([listPasskeys(session.user.id), listPendingInvites(), systemInfo()]);
+  const [invites, info] = await Promise.all([listPendingInvites(), systemInfo()]);
 
   return (
     <>
-      <AdminPageHeader title="System" description="Passkeys, weitere Admins und Systemzustand." />
+      <AdminPageHeader title="System" description="Admin-Einladungen und Systemzustand." />
       <div className="space-y-6">
-        <PasskeysCard initial={passkeys} />
+        <p className="text-sm text-slate-500">
+          Deine eigenen Passkeys verwaltest du unter{" "}
+          <Link href="/konto#passkeys" className="font-medium text-indigo-600 hover:underline">
+            Mein Konto
+          </Link>
+          .
+        </p>
         <InvitesCard initial={invites.map((i) => ({ ...i, expiresAt: i.expiresAt.toISOString() }))} />
         <section className="card p-6" aria-labelledby="system-title">
           <h2 id="system-title" className="font-semibold tracking-tight">

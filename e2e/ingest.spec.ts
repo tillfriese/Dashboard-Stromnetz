@@ -78,8 +78,8 @@ test.describe.serial("Datenabruf (Phase 3)", () => {
 
     await page.goto("/admin/datenimport");
     const form = page.locator("section", { has: page.getByRole("heading", { name: "Zeitraum neu laden" }) });
-    await form.getByLabel("Von").fill("2026-01-01");
-    await form.getByLabel("Bis").fill("2026-03-31");
+    await form.getByLabel("Von", { exact: true }).fill("2026-01-01");
+    await form.getByLabel("Bis", { exact: true }).fill("2026-03-31");
     for (const s of ["SMARD", "Energy-Charts", "ENTSO-E", "StromGedacht"]) {
       const box = form.getByRole("checkbox", { name: new RegExp(s) });
       if (s === "SMARD") await box.check();

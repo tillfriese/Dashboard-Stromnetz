@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { hasActiveAccount } from "@/lib/auth/registration";
 
 /** Admin pages reachable without a session. */
-const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/setup", "/admin/registrieren"];
+const PUBLIC_ADMIN_PATHS = ["/admin/setup", "/admin/registrieren"];
 
 /**
  * First line of defence for the admin area. Every admin page and route handler
@@ -19,20 +19,34 @@ export async function proxy(request: NextRequest) {
     return withNoIndex(new NextResponse("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } }));
   }
 
+  // The former admin login lives on the common sign-in page now.
+  if (pathname === "/admin/login") {
+    const url = new URL("/anmelden", request.url);
+    url.searchParams.set("next", request.nextUrl.searchParams.get("next") ?? "/admin");
+    return withNoIndex(NextResponse.redirect(url));
+  }
+
   if (!isApi && PUBLIC_ADMIN_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return withNoIndex(NextResponse.next());
   }
 
+  const noStore = { "Cache-Control": "no-store" };
   const session = await auth().api.getSession({ headers: request.headers });
-  if (session) return withNoIndex(NextResponse.next());
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  if (session && role === "admin") return withNoIndex(NextResponse.next());
 
-  if (isApi) {
-    return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  if (session) {
+    // Signed in, but no admin rights.
+    if (isApi) return NextResponse.json({ error: "Keine Admin-Rechte" }, { status: 403, headers: noStore });
+    return withNoIndex(NextResponse.redirect(new URL("/konto?hinweis=keine-admin-rechte", request.url)));
   }
 
-  const target = (await hasActiveAccount()) ? "/admin/login" : "/admin/setup";
-  const url = new URL(target, request.url);
-  if (target === "/admin/login" && pathname !== "/admin") url.searchParams.set("next", pathname + search);
+  if (isApi) return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401, headers: noStore });
+
+  // Before the first admin exists, the admin area leads to the first-run setup.
+  if (!(await hasActiveAccount())) return withNoIndex(NextResponse.redirect(new URL("/admin/setup", request.url)));
+  const url = new URL("/anmelden", request.url);
+  url.searchParams.set("next", pathname + search);
   return withNoIndex(NextResponse.redirect(url));
 }
 

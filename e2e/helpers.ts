@@ -63,3 +63,15 @@ export async function setupAdmin(page: Page, name = "Test Admin", email = "admin
   await page.getByRole("button", { name: /Account anlegen/ }).click();
   await expect(page.getByText("Der Admin-Account ist eingerichtet")).toBeVisible();
 }
+
+export const ORIGIN = { Origin: "http://localhost:3000" };
+
+/**
+ * Creates a regular account (e-mail + password) and signs the page's context in.
+ * Clears the sign-up rate limit first, since the suite creates several accounts from one IP.
+ */
+export async function signUpUser(page: Page, name: string, email: string, password = "correct-horse-battery") {
+  psql(`DELETE FROM rate_limit`);
+  const res = await page.request.post("/api/auth/sign-up/email", { headers: ORIGIN, data: { name, email, password } });
+  expect(res.status(), await res.text()).toBe(200);
+}

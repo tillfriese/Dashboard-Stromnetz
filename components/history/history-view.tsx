@@ -25,11 +25,13 @@ export function HistoryView({
   initialData,
   initialSearch,
   initialViews,
+  signedIn,
   hasData,
 }: {
   initialData: TimeseriesResponse | null;
   initialSearch: string;
   initialViews: View[];
+  signedIn: boolean;
   hasData: boolean;
 }) {
   const { query: q, update: rawUpdate, replaceAll } = useHistoryQuery();
@@ -45,7 +47,7 @@ export function HistoryView({
   const [views, setViews] = useState(initialViews);
   // On small screens the long filter column is collapsed behind a button.
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilters = q.conditions.length + (q.carriers.length < 9 ? 1 : 0) + (q.regions.length < 4 ? 1 : 0) + (q.metrics.join() !== "load" ? 1 : 0);
+  const activeFilters = q.conditions.length + (q.carriers.length < 9 ? 1 : 0) + (q.regions.length < 4 ? 1 : 0) + (q.metrics.length > 0 ? 1 : 0);
   const { res, coarsened } = effectiveResolution(q);
 
   // The selected control areas are summed into one selection.
@@ -55,7 +57,7 @@ export function HistoryView({
   const publicMode = data?.publicMode ?? false;
 
   return (
-    <main className="mx-auto grid max-w-[1440px] gap-6 px-4 py-8 sm:px-8 sm:py-10 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-8">
+    <main className="mx-auto grid max-w-[1440px] gap-6 px-4 py-8 sm:px-8 sm:py-10 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-8">
       <button
         type="button"
         aria-expanded={filtersOpen}
@@ -82,6 +84,7 @@ export function HistoryView({
         carrierTotals={totals}
         views={views}
         onViewSaved={(v) => setViews((vs) => [v, ...vs])}
+        signedIn={signedIn}
         publicMode={publicMode}
       />
       </div>

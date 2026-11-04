@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { newPageWithAuthenticator, psql, setupAdmin } from "./helpers";
 
 /* Phase 7: no horizontal page scrolling from phone to desktop; collapsible filters on phones. */
 
@@ -18,7 +19,7 @@ for (const width of [360, 390, 768, 1024, 1440]) {
 
 test("Filter der Historie sind auf dem Handy einklappbar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/historie?cond=price.lt.0");
+  await page.goto("/historie?cond=price.lt.0&metrics=");
   const toggle = page.getByRole("button", { name: /^Filter/ });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(toggle).toContainText("1 aktiv");
@@ -38,4 +39,25 @@ test("unbekannte Adresse zeigt eine deutsche 404-Seite", async ({ page }) => {
   expect(res?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "Seite nicht gefunden" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Aktuelle Lage" })).toHaveAttribute("href", "/");
+});
+
+test("Kopfzeile: Pill und Konto-Schalter überlappen auf dem Handy nicht (Gast und Admin)", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 740 } });
+  const { page } = await newPageWithAuthenticator(ctx);
+  const noOverlap = async () => {
+    const nav = (await page.getByRole("navigation", { name: "Hauptnavigation" }).boundingBox())!;
+    const right = (await page.getByRole("button", { name: /Farbschema/ }).locator("..").boundingBox())!;
+    expect(nav.x + nav.width).toBeLessThanOrEqual(right.x);
+    expect(right.x + right.width).toBeLessThanOrEqual(360);
+  };
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Anmelden" })).toBeVisible();
+  await noOverlap();
+  await setupAdmin(page, "Mobil Admin", "mobil@example.test");
+  await page.goto("/historie");
+  await expect(page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("link", { name: "Admin" })).toBeVisible();
+  await noOverlap();
+  await page.screenshot({ path: "test-results/header-mobile-admin.png" });
+  psql(`TRUNCATE "user", session, verification, passkey, registration_tokens, rate_limit CASCADE`);
+  await ctx.close();
 });

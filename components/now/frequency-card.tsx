@@ -79,7 +79,7 @@ export function FrequencyCard() {
             onMouseMove={onMove}
             onMouseLeave={() => setHoverTs(null)}
             role="img" aria-label={`Netzfrequenz der letzten 5 Minuten, aktuell ${formatNumber(data.latest.hz, 3)} Hertz`}>
-            <rect x={0} y={y(50.02)} width={W} height={y(49.98) - y(50.02)} className="fill-slate-50" />
+            <rect x={0} y={y(50.02)} width={W} height={y(49.98) - y(50.02)} fill="var(--color-forecast)" />
             <line x1={0} x2={W} y1={y(50)} y2={y(50)} className="stroke-slate-300" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
             <polyline points={line} fill="none" className="stroke-slate-900" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
             {pts.length ? <circle cx={x(t1)} cy={y(pts.at(-1)![1])} r={2.5} className="fill-indigo-600" /> : null}

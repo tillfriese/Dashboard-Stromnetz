@@ -42,22 +42,34 @@ Zwei Wege:
    ```
 2. **Eigener Reverse Proxy:** Profil weglassen und den Proxy auf Port `3000` der App zeigen lassen.
 
-## Admin-Bereich und Passkeys
+## Konten, Rollen und Passkeys
 
-Der Admin-Bereich unter `/admin` steht nicht in der Navigation und ist per `noindex` ausgeschlossen.
-Die Anmeldung erfolgt **ausschließlich per Passkey** (WebAuthn, Better Auth). Es gibt kein Passwort
-und keine offene Registrierung.
+„Aktuell“ und „Historie“ sind ohne Anmeldung nutzbar (Gäste sehen die Standardfilter). Unter `/anmelden`
+kann sich jede Person ein Konto anlegen – **per Passkey** (WebAuthn) **oder E-Mail + Passwort**
+(mind. 10 Zeichen, gespeichert als Hash). Mit Konto lassen sich eigene Ansichten der Historie speichern;
+sie sind **nur für den eigenen Nutzer** sichtbar (max. 100 pro Konto, verwaltbar unter `/konto`).
+Über „Als Gast fortfahren“ geht es ohne Konto direkt zur Historie.
+
+Rollen: `user` (Standard für jede Registrierung) und `admin`. Nur Admins erreichen `/admin` (nicht in der
+Navigation, `noindex`); angemeldete Nutzer ohne Admin-Rechte werden zu `/konto` umgeleitet, Admin-APIs
+antworten mit 403. **Admins befördern Nutzer im Tab „Nutzer“** zum Admin, entziehen Rechte oder löschen
+Konten. Die eigenen Rechte kann man sich nicht selbst entziehen, und der letzte Admin bleibt immer erhalten.
 
 ### Ersteinrichtung – direkt nach dem ersten Start erledigen
 
-1. `/admin` aufrufen. Solange es keinen aktiven Account gibt, landest du auf `/admin/setup`.
+1. `/admin` aufrufen. Solange es keinen aktiven Admin gibt, landest du auf `/admin/setup`.
 2. Name und E-Mail eingeben und den ersten Passkey registrieren. Erst danach ist der Account aktiv;
    bricht die Registrierung ab, wird der halbfertige Account wieder gelöscht.
 3. **Sofort einen zweiten Passkey** auf einem anderen Gerät oder Sicherheitsschlüssel anlegen
-   (Tab „System“ → „Passkey hinzufügen“).
+   (`/konto` → „Passkey hinzufügen“).
 
-Es gibt keinen Setup-Code: **Wer `/admin/setup` als Erster abschließt, wird Admin.** Danach ist die
-Registrierung dauerhaft gesperrt (`/admin/setup` liefert 404, Sign-up-Endpunkte lehnen ab).
+Es gibt keinen Setup-Code: **Wer `/admin/setup` als Erster abschließt, wird Admin.** Danach liefert
+`/admin/setup` dauerhaft 404. Neue Konten über `/anmelden` erhalten immer die Rolle `user`.
+E-Mail-Adressen werden nicht bestätigt (kein Mailserver). Hat jemand vor der Ersteinrichtung ein normales
+Konto mit der Admin-Adresse angelegt, ersetzt die Ersteinrichtung dieses Konto. Bei der Registrierung
+antwortet die App neutral („keine Registrierung möglich“). Dass eine Adresse vergeben ist, lässt sich
+ohne Bestätigungs-Mail aber nicht vollständig verbergen; Registrierungen sind je IP auf 5 in 10 Minuten
+begrenzt.
 
 ### Passkeys sind an die Domain gebunden
 
@@ -67,8 +79,8 @@ funktioniert nur dort. **Ändert sich die Domain, müssen alle Passkeys neu regi
 
 ### Weitere Admins
 
-Im Tab „System“ einen Einladungslink erzeugen (einmalig, 24 h gültig). Die eingeladene Person
-registriert darüber ihren Passkey.
+Entweder ein bestehendes Konto im Tab „Nutzer“ befördern oder im Tab „System“ einen Einladungslink
+erzeugen (einmalig, 24 h gültig); die eingeladene Person registriert darüber einen Passkey und ist direkt Admin.
 
 ### Notfall: alle Geräte verloren
 
@@ -142,7 +154,7 @@ Eigenheiten der Quellen:
 - **Bedingungen** (`cond=price.lt.0`, `cond=re.gt.80`, `cond=residual.lt.0`, `cond=load.gt.70`, `cond=co2.lt.200`,
   `cond=dow.67`, `cond=hour.10-15`) werden UND-verknüpft je Viertelstunde auf den Rohdaten ausgewertet, erst danach
   wird aggregiert. Stündliche Preise vor Oktober 2025 gelten für alle vier Viertelstunden der Stunde.
-- Gespeicherte Ansichten sind für alle Besucher sichtbar (max. 500, 10 pro Stunde und Client).
+- Gespeicherte Ansichten sind privat je Konto (max. 100). Gäste nutzen die Standardfilter oder teilen Ansichten per Link.
 - Nach einem Import älterer Zeiträume frischt der Import die Continuous Aggregates selbst auf (die Policies decken
   nur die letzten 60 Tage ab). Für manuell eingespielte Daten: `CALL refresh_continuous_aggregate('obs_daily', '2015-01-01', now() - interval '60 days');` (ebenso für `obs_hourly`).
 
@@ -154,7 +166,7 @@ Eigenheiten der Quellen:
   den Einstellungen und wird um 00:00 Uhr (Europe/Berlin) ersetzt, der alte ist danach weg. **IP-Adressen werden nie
   gespeichert**, vom User-Agent nur Gerätetyp, Browser- und OS-Familie mit Hauptversion.
 - Nicht gezählt: Bots/Crawler/Skripte, automatisierte Browser (`navigator.webdriver`), Do-Not-Track/GPC,
-  der Admin-Bereich und angemeldete Admins.
+  der Admin-Bereich und angemeldete Admins (normale Konten zählen wie Gäste).
 - Land nur mit offline eingebundener GeoIP-Datenbank (z. B. DB-IP „IP to Country Lite“, CC BY 4.0, `.mmdb`):
   Datei ins Volume legen und `GEOIP_DB_PATH=/pfad/zur/datei.mmdb` setzen.
 - Rohdaten (`visits`, `visit_events`) werden nach 90 Tagen gelöscht (im Tab „Besucher“ einstellbar). Die Aggregate
