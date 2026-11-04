@@ -63,7 +63,7 @@ export function PasskeysCard({ initial: rows }: { initial: Row[] }) {
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-5 overflow-x-auto" tabIndex={0} role="region" aria-label="Passkeys (scrollbar)">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-slate-500">
             <tr className="border-b border-slate-100">

@@ -16,6 +16,13 @@ export async function listPasskeys(userId: string) {
   }));
 }
 
+/** ISO string or null (Timescale reports "-infinity" watermarks for aggregates without data). */
+const iso = (v: Date | string | null | undefined) => {
+  if (v == null) return null;
+  const d = new Date(v);
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+};
+
 export async function systemInfo() {
   const [size, tables, compression, caggs, tsJobs] = await Promise.all([
     db().execute<{ size: string }>(sql`SELECT pg_size_pretty(pg_database_size(current_database())) AS size`),
@@ -61,14 +68,14 @@ export async function systemInfo() {
     },
     caggs: caggs.rows.map((r) => ({
       name: r.view_name,
-      lastRun: r.last_run ? new Date(r.last_run).toISOString() : null,
+      lastRun: iso(r.last_run),
       status: r.last_status,
-      nextStart: r.next_start ? new Date(r.next_start).toISOString() : null,
-      watermark: r.watermark ? new Date(r.watermark).toISOString() : null,
+      nextStart: iso(r.next_start),
+      watermark: iso(r.watermark),
     })),
     dbJobs: tsJobs.rows.map((j) => ({
       name: `${j.application_name.replace(/ \[\d+\]$/, "")} (${j.hypertable_name ?? ""})`,
-      nextRun: j.next_start ? new Date(j.next_start).toISOString() : null,
+      nextRun: iso(j.next_start),
       status: j.last_run_status,
     })),
     appJobs: scheduledJobs(),

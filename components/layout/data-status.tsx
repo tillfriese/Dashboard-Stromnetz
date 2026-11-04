@@ -36,7 +36,7 @@ export function DataStatus({ variant }: { variant: "now" | "history" }) {
   const live = delay != null && delay < 4 * 3600_000;
   return (
     <p className="mt-2 flex h-5 flex-wrap items-center gap-x-3 text-sm text-slate-500" aria-live="polite">
-      <span className={`inline-flex items-center gap-1.5 font-medium ${live ? "text-slate-900" : "text-slate-400"}`}>
+      <span className={`inline-flex items-center gap-1.5 font-medium ${live ? "text-slate-900" : "text-slate-500"}`}>
         <span aria-hidden className={`size-2 rounded-full ${live ? "bg-emerald-500" : "bg-slate-300"}`} />
         {live ? "Live" : "Keine aktuellen Daten"}
       </span>

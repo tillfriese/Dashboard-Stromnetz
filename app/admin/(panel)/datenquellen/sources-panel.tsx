@@ -153,7 +153,7 @@ function SourceCard({
             <p className="text-sm text-slate-600">
               Token:{" "}
               <span className="font-mono text-slate-900">{secret?.value ?? "nicht gesetzt"}</span>{" "}
-              <span className="text-slate-400">({ORIGIN_LABEL[secret?.origin ?? "none"]})</span>
+              <span className="text-slate-500">({ORIGIN_LABEL[secret?.origin ?? "none"]})</span>
             </p>
             <Field
               id={`${source.id}-token`}

@@ -13,7 +13,10 @@ export const SETTING_DEFS = {
   "stromgedacht.zip": { secret: false, env: "STROMGEDACHT_ZIP", default: "70173" },
   "app.publicMode": { secret: false, env: "PUBLIC_MODE", default: "false" },
   ...Object.fromEntries(SOURCE_IDS.map((id) => [`source.${id}.enabled`, { secret: false, default: "true" }])),
-} as Record<string, { secret: boolean; env?: string; default?: string }>;
+  // Visitor statistics: daily salt for session hashes (internal, never shown) and raw-data retention.
+  "stats.salt": { secret: true, internal: true },
+  "stats.retentionDays": { secret: false, default: "90" },
+} as Record<string, { secret: boolean; env?: string; default?: string; internal?: boolean }>;
 
 export type SettingKey = keyof typeof SETTING_DEFS;
 
@@ -81,7 +84,7 @@ export async function setSettings(values: Record<string, string | null>) {
 
 /** Settings as shown in the admin UI: secrets masked. */
 export async function getSettingsForUi() {
-  const resolved = await getSettings(Object.keys(SETTING_DEFS));
+  const resolved = await getSettings(Object.keys(SETTING_DEFS).filter((k) => !SETTING_DEFS[k]?.internal));
   return Object.fromEntries(
     Object.entries(resolved).map(([k, s]) => {
       const secret = SETTING_DEFS[k]?.secret;

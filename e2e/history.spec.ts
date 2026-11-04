@@ -58,6 +58,22 @@ test.describe("Seite „Historie“", () => {
     await expect(page).toHaveURL(/res=15min/);
   });
 
+  test("Regionen: Alle/Keine-Schalter", async ({ page }) => {
+    await page.goto("/historie?from=2015-01-01&to=2015-12-31&res=month");
+    const filters = page.getByRole("complementary", { name: "Filter" });
+    const region = filters.locator("section", { has: page.getByRole("heading", { name: "Region" }) });
+    await region.getByRole("button", { name: "Keine" }).click();
+    await expect(page).toHaveURL(/regions=(&|$)/);
+    for (const z of ["50Hertz", "Amprion", "TenneT", "TransnetBW"]) await expect(filters.getByRole("checkbox", { name: `Regelzone ${z}` })).not.toBeChecked();
+    await expect(page.getByText("Keine Regelzone ausgewählt.")).toBeVisible();
+    await expect(page.getByRole("list", { name: "Aktive Filter" })).toContainText("Keine Regelzone");
+
+    await region.getByRole("button", { name: "Alle" }).click();
+    await expect(page).not.toHaveURL(/regions=/);
+    for (const z of ["50Hertz", "Amprion", "TenneT", "TransnetBW"]) await expect(filters.getByRole("checkbox", { name: `Regelzone ${z}` })).toBeChecked();
+    await expect(region.getByRole("button", { name: "Keine" })).toBeVisible();
+  });
+
   test("Zurücksetzen und Schnellwahl", async ({ page }) => {
     await page.goto("/historie?from=2015-01-01&to=2015-12-31&res=month");
     await page.getByRole("button", { name: "Zurücksetzen" }).click();

@@ -1,11 +1,17 @@
 import { AdminPageHeader } from "@/components/admin/page-header";
-import { Alert } from "@/components/ui/alert";
+import { VisitorsPanel } from "./visitors-panel";
+
+export const dynamic = "force-dynamic";
 
 export default function VisitorsPage() {
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   return (
     <>
-      <AdminPageHeader title="Besucher" description="Cookielose Besucherstatistik." />
-      <Alert>Folgt in Phase 6 (Besucherstatistik).</Alert>
+      <AdminPageHeader
+        title="Besucher"
+        description="Selbst gehostete Statistik ohne Cookies und ohne gespeicherte IP-Adressen. Admin-Aufrufe und Bots werden nicht gezählt."
+      />
+      <VisitorsPanel today={today} />
     </>
   );
 }

@@ -24,7 +24,7 @@ export function FilterChips({
           {shortDate(q.from)} – {shortDate(q.to)}
         </li>
         <li className={chip}>{RESOLUTION_LABEL[res]}</li>
-        <li className={chip}>{q.regions.length === 4 ? "Deutschland (alle Regelzonen)" : q.regions.join(" + ")}</li>
+        <li className={chip}>{q.regions.length === 4 ? "Deutschland (alle Regelzonen)" : q.regions.length === 0 ? "Keine Regelzone" : q.regions.join(" + ")}</li>
         <li className={chip}>
           {q.carriers.length} von {CARRIERS.length} Energieträgern
         </li>

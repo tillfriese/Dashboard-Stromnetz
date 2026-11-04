@@ -25,7 +25,7 @@ export function DataTable({ rows, res, query: q, publicMode }: { rows: Row[]; re
       <CardTitle id="table-title" right={<span className="text-sm text-slate-500">{unit} je Abschnitt · {regionLabel(q.regions)}</span>}>
         Tabellenansicht
       </CardTitle>
-      <div className="mt-4 max-h-[520px] overflow-auto">
+      <div className="mt-4 max-h-[520px] overflow-auto" tabIndex={0} role="region" aria-label="Tabellenansicht (scrollbar)">
         <table className="w-full text-right text-sm whitespace-nowrap tabular-nums">
           <thead className="sticky top-0 bg-surface text-xs text-slate-500">
             <tr className="border-b border-slate-200">

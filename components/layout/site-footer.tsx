@@ -21,11 +21,11 @@ export function SiteFooter() {
                 <a href={s.href} className="rounded hover:text-slate-900" target="_blank" rel="noopener noreferrer">
                   {s.label}
                 </a>
-                {s.note ? <span className="text-slate-400"> ({s.note})</span> : null}
+                {s.note ? <span className="text-slate-500"> ({s.note})</span> : null}
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-slate-400">Börsenpreise: EPEX SPOT via Energy-Charts, nur zur nicht-öffentlichen Nutzung.</p>
+          <p className="mt-2 text-slate-500">Börsenpreise: EPEX SPOT via Energy-Charts, nur zur nicht-öffentlichen Nutzung.</p>
         </div>
         <Link href="/impressum" className="rounded hover:text-slate-900">
           Impressum

@@ -13,6 +13,12 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isApi = pathname.startsWith("/api/admin");
 
+  // Once an active account exists, the setup page is gone for good. Answered here with a real
+  // 404 status – the page itself is streamed (loading UI), so its status could already be 200.
+  if (pathname === "/admin/setup" && (await hasActiveAccount())) {
+    return withNoIndex(new NextResponse("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } }));
+  }
+
   if (!isApi && PUBLIC_ADMIN_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return withNoIndex(NextResponse.next());
   }

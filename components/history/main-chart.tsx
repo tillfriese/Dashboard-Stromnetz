@@ -207,7 +207,9 @@ export function MainChart({
         role="img"
         aria-label={`Diagramm: Nettoerzeugung ${regionName}, ${rows.length} Abschnitte, ${what}. Ziehen zoomt, Klick auf einen Abschnitt öffnet die nächstfeinere Auflösung.`}
       >
-        {carriers.length === 0 ? (
+        {q.regions.length === 0 ? (
+          <p className="grid h-full place-items-center text-sm text-slate-500">Keine Regelzone ausgewählt.</p>
+        ) : carriers.length === 0 ? (
           <p className="grid h-full place-items-center text-sm text-slate-500">Keine Energieträger ausgewählt.</p>
         ) : rows.length === 0 ? (
           <p className="grid h-full place-items-center text-sm text-slate-500">Keine Daten für diese Auswahl.</p>

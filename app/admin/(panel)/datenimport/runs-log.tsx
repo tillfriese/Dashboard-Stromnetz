@@ -69,7 +69,7 @@ export function RunsLog() {
           </label>
         </div>
       </div>
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label="Protokoll (scrollbar)">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-slate-500">
             <tr className="border-b border-slate-100">

@@ -5,7 +5,7 @@ export function TableDetails({ summary = "Als Tabelle anzeigen", head, rows }: {
   return (
     <details className="mt-4 text-sm">
       <summary className="cursor-pointer rounded text-slate-500 hover:text-slate-900">{summary}</summary>
-      <div className="mt-2 max-h-72 overflow-auto rounded-xl border border-slate-100">
+      <div className="mt-2 max-h-72 overflow-auto rounded-xl border border-slate-100" tabIndex={0} role="region" aria-label={`${summary}: Tabelle (scrollbar)`}>
         <table className="w-full text-left tabular-nums">
           <thead className="sticky top-0 bg-surface text-xs text-slate-500">
             <tr>

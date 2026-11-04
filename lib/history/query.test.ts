@@ -42,6 +42,10 @@ describe("history query (URL state)", () => {
     expect(defaultQuery(NOW).regions).toEqual(["50Hertz", "Amprion", "TenneT", "TransnetBW"]);
     expect(parseQuery(new URLSearchParams("regions=DE"), NOW).regions).toEqual(["50Hertz", "Amprion", "TenneT", "TransnetBW"]);
     expect(parseQuery(new URLSearchParams("regions=TenneT,Amprion"), NOW).regions).toEqual(["Amprion", "TenneT"]);
+    // "Keine": an explicitly empty selection survives the URL round trip
+    const none = parseQuery(new URLSearchParams("regions="), NOW);
+    expect(none.regions).toEqual([]);
+    expect(parseQuery(serializeQuery(none, NOW), NOW).regions).toEqual([]);
   });
 
   it("keeps default values out of the URL", () => {

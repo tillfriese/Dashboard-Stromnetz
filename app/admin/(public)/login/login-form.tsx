@@ -50,7 +50,7 @@ export function LoginForm({ next }: { next: string }) {
         name="username"
         autoComplete="username webauthn"
         placeholder="Passkey auswählen"
-        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400"
+        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-500"
       />
       {error ? <Alert tone="error">{error}</Alert> : null}
       <Button variant="primary" className="w-full" onClick={signIn} disabled={busy}>

@@ -3,8 +3,9 @@
 import { addDays, addYears, format, parseISO } from "date-fns";
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
+import { radioKeyDown } from "@/components/ui/radio-keys";
 import { Button } from "@/components/ui/button";
-import { CARRIERS, NEIGHBOURS } from "@/lib/carriers";
+import { CARRIERS } from "@/lib/carriers";
 import { formatNumber } from "@/lib/format";
 import {
   COND_OPS,
@@ -37,11 +38,6 @@ const QUICK: { label: string; from: (to: string) => string }[] = [
   { label: "5 Jahre", from: (to) => format(addDays(addYears(parseISO(to), -5), 1), "yyyy-MM-dd") },
   { label: "Alles", from: () => DATA_START },
 ];
-
-const NEIGHBOUR_NAMES: Record<string, string> = {
-  NO: "Norwegen", DK: "Dänemark", SE: "Schweden", NL: "Niederlande", BE: "Belgien", LU: "Luxemburg",
-  FR: "Frankreich", CH: "Schweiz", AT: "Österreich", CZ: "Tschechien", PL: "Polen",
-};
 
 const inputCls = "block w-full rounded-xl border border-slate-200 bg-surface px-3 py-2 text-sm tabular-nums";
 const selectCls = "rounded-xl border border-slate-200 bg-surface px-2.5 py-2 text-sm";
@@ -147,6 +143,8 @@ export function FilterSidebar(props: {
                 type="button"
                 role="radio"
                 aria-checked={active}
+                tabIndex={active ? 0 : -1}
+                onKeyDown={(e) => radioKeyDown(e, RESOLUTIONS, effectiveRes, (r) => update({ res: r }), (r) => estimatePoints(days, r) > MAX_POINTS)}
                 disabled={tooFine}
                 title={tooFine ? `Für ${formatNumber(days, 0)} Tage zu fein (über 5.000 Punkte)` : undefined}
                 onClick={() => update({ res: r })}
@@ -155,7 +153,7 @@ export function FilterSidebar(props: {
                     ? "bg-surface font-medium text-slate-900 shadow-sm"
                     : tooFine
                       ? "cursor-not-allowed text-slate-300 line-through decoration-slate-300/70"
-                      : "text-slate-500 hover:text-slate-900"
+                      : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {RESOLUTION_LABEL[r]}
@@ -180,7 +178,19 @@ export function FilterSidebar(props: {
         </p>
       </Section>
 
-      <Section title="Region" id="f-region">
+      <Section
+        title="Region"
+        id="f-region"
+        right={
+          <button
+            type="button"
+            className="text-xs font-medium text-indigo-600"
+            onClick={() => update({ regions: q.regions.length === ZONE_KEYS.length ? [] : [...ZONE_KEYS] })}
+          >
+            {q.regions.length === ZONE_KEYS.length ? "Keine" : "Alle"}
+          </button>
+        }
+      >
         <div className="space-y-2">
           {ZONE_KEYS.map((z) => (
             <Check
@@ -189,31 +199,12 @@ export function FilterSidebar(props: {
               checked={q.regions.includes(z)}
               onChange={() => {
                 const next = toggle(q.regions, z);
-                // At least one zone stays selected.
-                if (next.length) update({ regions: ZONE_KEYS.filter((k) => next.includes(k)) });
+                update({ regions: ZONE_KEYS.filter((k) => next.includes(k)) });
               }}
             />
           ))}
         </div>
         <p className="mt-2 text-xs text-slate-500">Ausgewählte Regelzonen werden addiert; alle vier ergeben Deutschland.</p>
-        <label className="mt-4 block text-xs text-slate-500">
-          Grenzflüsse mit
-          <select
-            className={`${selectCls} mt-1 w-full`}
-            value={q.flow}
-            onChange={(e) => {
-              const flow = e.target.value as HistoryQuery["flow"];
-              update({ flow, metrics: q.metrics.includes("netImport") ? q.metrics : [...q.metrics, "netImport"] });
-            }}
-          >
-            <option value="sum">Alle Nachbarländer (Saldo)</option>
-            {NEIGHBOURS.map((n) => (
-              <option key={n} value={n}>
-                {NEIGHBOUR_NAMES[n]} ({n})
-              </option>
-            ))}
-          </select>
-        </label>
       </Section>
 
       <Section
@@ -340,7 +331,7 @@ function ConditionsEditor({
                   </option>
                 ))}
               </select>
-              <button type="button" aria-label="Bedingung entfernen" className="rounded-lg px-2 text-slate-400 hover:text-slate-900" onClick={() => onChange(conditions.filter((_, j) => j !== i))}>
+              <button type="button" aria-label="Bedingung entfernen" className="rounded-lg px-2 text-slate-500 hover:text-slate-900" onClick={() => onChange(conditions.filter((_, j) => j !== i))}>
                 ×
               </button>
             </div>
@@ -462,11 +453,13 @@ function Actions({
           href={`/api/timeseries?${params}&format=csv`}
           download
           onClick={() => onTrack?.("csv_exported")}
-          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-surface px-3 py-2 text-sm font-medium hover:bg-slate-50"
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-surface px-2 py-2 text-center text-sm leading-tight font-medium hover:bg-slate-50"
         >
           CSV exportieren
         </a>
-        <Button
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-surface px-2 py-2 text-center text-sm leading-tight font-medium hover:bg-slate-50"
           onClick={async () => {
             await navigator.clipboard.writeText(window.location.href).catch(() => {});
             onTrack?.("link_copied");
@@ -474,7 +467,7 @@ function Actions({
           }}
         >
           Link kopieren
-        </Button>
+        </button>
       </div>
       {msg ? <Alert tone={msg.tone}>{msg.text}</Alert> : null}
     </div>

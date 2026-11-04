@@ -1,5 +1,7 @@
 "use client";
 
+import { radioKeyDown } from "./radio-keys";
+
 /** Segmented control on slate-100 with a white active segment (radio group semantics). */
 export function Segmented<T extends string>({
   value,
@@ -22,9 +24,11 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(o.value)}
+            onKeyDown={(e) => radioKeyDown(e, options.map((x) => x.value), value, onChange)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              active ? "bg-surface text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+              active ? "bg-surface text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             {o.label}

@@ -1,5 +1,6 @@
 import cron, { type ScheduledTask } from "node-cron";
 import { startFrequencyPoller } from "@/lib/frequency/poller";
+import { rotateSalt } from "@/lib/stats/salt";
 import { getSetting, isSourceEnabled } from "@/lib/settings";
 import { fetchPrices } from "@/lib/sources/energy-charts";
 import { fetchStromGedachtOutlook } from "@/lib/sources/stromgedacht";
@@ -49,6 +50,13 @@ const JOBS: JobDef[] = [
       if (!(await getSetting("entsoe.token"))) return;
       await ingestRange("entsoe", Date.now() - 2 * DAY, Date.now(), "recent");
     },
+  },
+  {
+    name: "salt",
+    label: "Neuer Salt für die Besucherstatistik",
+    cron: "0 0 * * *",
+    // The previous salt is overwritten, so visitors cannot be linked across days.
+    run: () => rotateSalt(),
   },
   {
     name: "revision",

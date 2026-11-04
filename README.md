@@ -3,7 +3,7 @@
 Dashboard zum deutschen Stromnetz: aktuelle Lage (`/`) und historische Daten (`/historie`).
 Next.js (App Router, standalone) + PostgreSQL/TimescaleDB, als ein Docker-Compose-Stack.
 
-> Stand: **Phase 5 (Seite „Historie“)**. Besucherstatistik und Feinschliff folgen.
+> Stand: **Phase 7 (Feinschliff) abgeschlossen** – alle Phasen des Auftrags sind umgesetzt.
 
 ## Schnellstart
 
@@ -145,6 +145,29 @@ Eigenheiten der Quellen:
 - Gespeicherte Ansichten sind für alle Besucher sichtbar (max. 500, 10 pro Stunde und Client).
 - Nach einem Import älterer Zeiträume frischt der Import die Continuous Aggregates selbst auf (die Policies decken
   nur die letzten 60 Tage ab). Für manuell eingespielte Daten: `CALL refresh_continuous_aggregate('obs_daily', '2015-01-01', now() - interval '60 days');` (ebenso für `obs_hourly`).
+
+## Besucherstatistik (ohne Cookies)
+
+- Selbst gehostet, keine Drittanbieter, **keine Cookies, kein `localStorage` für Kennungen, kein Fingerprinting**.
+  Ein Cookie-Banner ist dafür nicht nötig; die Hinweise stehen im Impressum (Abschnitt „Datenschutz“, Platzhaltertext).
+- Sitzungs-ID = SHA-256 aus täglich wechselndem Salt, IP und User-Agent (gekürzt). Der Salt liegt verschlüsselt in
+  den Einstellungen und wird um 00:00 Uhr (Europe/Berlin) ersetzt, der alte ist danach weg. **IP-Adressen werden nie
+  gespeichert**, vom User-Agent nur Gerätetyp, Browser- und OS-Familie mit Hauptversion.
+- Nicht gezählt: Bots/Crawler/Skripte, automatisierte Browser (`navigator.webdriver`), Do-Not-Track/GPC,
+  der Admin-Bereich und angemeldete Admins.
+- Land nur mit offline eingebundener GeoIP-Datenbank (z. B. DB-IP „IP to Country Lite“, CC BY 4.0, `.mmdb`):
+  Datei ins Volume legen und `GEOIP_DB_PATH=/pfad/zur/datei.mmdb` setzen.
+- Rohdaten (`visits`, `visit_events`) werden nach 90 Tagen gelöscht (im Tab „Besucher“ einstellbar). Die Aggregate
+  `visits_hourly` und `visit_events_daily` bleiben unbegrenzt erhalten.
+
+## Barrierefreiheit und Darstellung
+
+- Automatische WCAG-2.1-A/AA-Prüfung (axe-core) aller Seiten in hellem und dunklem Modus als E2E-Test (`e2e/a11y.spec.ts`).
+- Tastatur: „Zum Inhalt springen“-Link, sichtbarer Fokusring, Auswahlgruppen per Pfeiltasten (eine Tab-Station je Gruppe),
+  alle Filter der Historie per Tab erreichbar, scrollbare Tabellen fokussierbar. Jedes Diagramm hat eine Tabellen-Alternative.
+- Responsiv von 360 px bis Desktop ohne horizontales Scrollen; auf dem Handy ist die Filterleiste der Historie einklappbar.
+- Dark Mode (zinc-950) folgt dem System, Umschalter oben rechts (System → Hell → Dunkel), gespeichert nur im eigenen Browser.
+- Eigene Lade-, Fehler- und 404-Seiten; fällt eine Quelle aus, zeigt nur die betroffene Karte einen Hinweis.
 
 ## Entwicklung
 

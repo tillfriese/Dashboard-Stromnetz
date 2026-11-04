@@ -43,68 +43,76 @@ export function seriesKeysFor(q: HistoryQuery, publicMode: boolean): string[] {
 type Params = unknown[];
 const p = (params: Params, v: unknown) => `$${params.push(v)}`;
 
-/** CTE "mask(ts)" with all quarter hours in [from, to) that satisfy every condition (DE values). */
+/**
+ * CTEs ending in "mask(ts)": all quarter hours in [from, to) that satisfy every condition
+ * (Germany-wide values). All needed series are pivoted in ONE pass over `observations`
+ * (GROUP BY ts), which avoids join mis-estimates over the many hypertable chunks.
+ */
 function maskSql(conds: Condition[], ids: Map<string, number>, from: number, to: number, params: Params): string {
   const id = (k: string) => {
     const v = ids.get(k);
     if (v == null) throw new Error(`series ${k} not registered`);
     return v;
   };
-  const f = p(params, from);
-  const t = p(params, to);
-  const range = (col: string) => `${col} >= to_timestamp(${f} / 1000.0) AND ${col} < to_timestamp(${t} / 1000.0)`;
-  const joins: string[] = [];
-  const where: string[] = [];
-  const ctes: string[] = [];
+  const loadId = id(smardSeriesKey("load", "DE"));
+  const needGen = conds.some((c) => c.kind === "re" || c.kind === "co2");
+  const needPrice = conds.some((c) => c.kind === "price");
+  const needResidual = conds.some((c) => c.kind === "residual");
 
-  if (conds.some((c) => c.kind === "re" || c.kind === "co2")) {
-    const rows = GENERATION_METRICS.map(
-      (m) => `(${id(smardSeriesKey(m, "DE"))}, ${RENEWABLE_METRICS.includes(m)}, ${CO2_G_PER_KWH[m] ?? 0})`,
-    ).join(", ");
-    ctes.push(`gen AS (
-      SELECT o.ts, sum(o.value) AS tot, sum(o.value) FILTER (WHERE v.re) AS re, sum(o.value * v.f) AS em
-      FROM observations o JOIN (VALUES ${rows}) AS v(id, re, f) ON v.id = o.series_id
-      WHERE ${range("o.ts")} GROUP BY o.ts)`);
-    joins.push("JOIN gen g ON g.ts = l.ts");
+  const genIds = GENERATION_METRICS.map((m) => id(smardSeriesKey(m, "DE")));
+  const reIds = RENEWABLE_METRICS.map((m) => id(smardSeriesKey(m, "DE")));
+  const seriesIds = [loadId, ...(needGen ? genIds : []), ...(needPrice ? [id(PRICE_KEY)] : []), ...(needResidual ? [id(smardSeriesKey("residual_load", "DE"))] : [])];
+
+  // Integer ids and constant factors are inlined (not user input); values below are parameters.
+  const cols = [`max(o.value) FILTER (WHERE o.series_id = ${loadId}) AS load`];
+  if (needResidual) cols.push(`max(o.value) FILTER (WHERE o.series_id = ${id(smardSeriesKey("residual_load", "DE"))}) AS residual`);
+  if (needPrice) cols.push(`max(o.value) FILTER (WHERE o.series_id = ${id(PRICE_KEY)}) AS price`);
+  if (needGen) {
+    const factor = GENERATION_METRICS.map((m) => `WHEN ${id(smardSeriesKey(m, "DE"))} THEN ${CO2_G_PER_KWH[m] ?? 0}`).join(" ");
+    cols.push(`sum(o.value) FILTER (WHERE o.series_id IN (${genIds.join(",")})) AS tot`);
+    cols.push(`sum(o.value) FILTER (WHERE o.series_id IN (${reIds.join(",")})) AS re`);
+    cols.push(`sum(o.value * CASE o.series_id ${factor} ELSE 0 END) FILTER (WHERE o.series_id IN (${genIds.join(",")})) AS em`);
   }
 
-  conds.forEach((c, i) => {
+  const where: string[] = ["b.load IS NOT NULL"]; // quarter-hour grid of Germany's grid load
+  for (const c of conds) {
     switch (c.kind) {
-      case "price": {
-        // Hourly prices before Oct 2025 apply to all four quarter hours of the hour.
-        const pid = p(params, id(PRICE_KEY));
-        joins.push(`LEFT JOIN observations pq${i} ON pq${i}.series_id = ${pid} AND pq${i}.ts = l.ts`);
-        joins.push(`LEFT JOIN observations ph${i} ON ph${i}.series_id = ${pid} AND ph${i}.ts = date_trunc('hour', l.ts)`);
-        where.push(`coalesce(pq${i}.value, ph${i}.value) ${SQL_OP[c.op]} ${p(params, c.value)}`);
+      case "price":
+        where.push(`b.price_q ${SQL_OP[c.op]} ${p(params, c.value)}`);
         break;
-      }
       case "residual":
-        joins.push(`JOIN observations r${i} ON r${i}.series_id = ${p(params, id(smardSeriesKey("residual_load", "DE")))} AND r${i}.ts = l.ts`);
-        where.push(`r${i}.value ${SQL_OP[c.op]} ${p(params, c.value * 1000)}`);
+        where.push(`b.residual ${SQL_OP[c.op]} ${p(params, c.value * 1000)}`);
         break;
       case "load":
-        where.push(`l.value ${SQL_OP[c.op]} ${p(params, c.value * 1000)}`);
+        where.push(`b.load ${SQL_OP[c.op]} ${p(params, c.value * 1000)}`);
         break;
       case "re":
-        where.push(`g.re / nullif(g.tot, 0) * 100 ${SQL_OP[c.op]} ${p(params, c.value)}`);
+        where.push(`b.re / nullif(b.tot, 0) * 100 ${SQL_OP[c.op]} ${p(params, c.value)}`);
         break;
       case "co2":
-        where.push(`g.em / nullif(g.tot, 0) ${SQL_OP[c.op]} ${p(params, c.value)}`);
+        where.push(`b.em / nullif(b.tot, 0) ${SQL_OP[c.op]} ${p(params, c.value)}`);
         break;
       case "dow":
-        where.push(`extract(isodow FROM l.ts AT TIME ZONE 'Europe/Berlin')::int = ANY(${p(params, c.days)}::int[])`);
+        where.push(`extract(isodow FROM b.ts AT TIME ZONE 'Europe/Berlin')::int = ANY(${p(params, c.days)}::int[])`);
         break;
       case "hour":
-        where.push(`extract(hour FROM l.ts AT TIME ZONE 'Europe/Berlin')::int BETWEEN ${p(params, c.from)} AND ${p(params, c.to)}`);
+        where.push(`extract(hour FROM b.ts AT TIME ZONE 'Europe/Berlin')::int BETWEEN ${p(params, c.from)} AND ${p(params, c.to)}`);
         break;
     }
-  });
+  }
 
-  // The quarter-hour grid is taken from Germany's grid load (available for the whole history).
-  const loadId = p(params, id(smardSeriesKey("load", "DE")));
-  return `${ctes.length ? `${ctes.join(", ")}, ` : ""}mask AS (
-    SELECT l.ts FROM observations l ${joins.join(" ")}
-    WHERE l.series_id = ${loadId} AND ${range("l.ts")} ${where.length ? `AND ${where.join(" AND ")}` : ""})`;
+  const f = p(params, from);
+  const t = p(params, to);
+  // Hourly prices (before Oct 2025) apply to all four quarter hours of their hour.
+  const priceQ = needPrice ? ", coalesce(price, max(price) OVER (PARTITION BY date_trunc('hour', ts))) AS price_q" : "";
+  return `base AS MATERIALIZED (
+      SELECT o.ts, ${cols.join(", ")}
+      FROM observations o
+      WHERE o.series_id = ANY(${p(params, seriesIds)}::int[])
+        AND o.ts >= to_timestamp(${f} / 1000.0) AND o.ts < to_timestamp(${t} / 1000.0)
+      GROUP BY o.ts),
+    b AS (SELECT *${priceQ} FROM base),
+    mask AS (SELECT b.ts FROM b WHERE ${where.join(" AND ")})`;
 }
 
 const bucketExpr = (res: Resolution, col: string) =>
@@ -131,15 +139,19 @@ async function aggregate(
   const matchedParams: Params = [];
 
   if (conds.length > 0) {
-    const mask = maskSql(conds, ids, from, to, params);
-    sql = `WITH ${mask}
-      SELECT o.series_id, ${bucketExpr(res, "o.ts")} AS b, sum(o.value) AS sum, count(*)::int AS count
-      FROM observations o JOIN mask m ON m.ts = o.ts
+    // Evaluate the quarter-hour mask once into a temporary table (dropped at commit), then use it
+    // for both the aggregation and the count of matching quarter hours.
+    const maskParams: Params = [];
+    const mask = maskSql(conds, ids, from, to, maskParams);
+    await client.query("DROP TABLE IF EXISTS pg_temp.mask_q");
+    await client.query(`CREATE TEMP TABLE mask_q ON COMMIT DROP AS WITH ${mask} SELECT ts FROM mask`, maskParams);
+    await client.query("ANALYZE mask_q");
+    sql = `SELECT o.series_id, ${bucketExpr(res, "o.ts")} AS b, sum(o.value) AS sum, count(*)::int AS count
+      FROM mask_q m JOIN observations o ON o.ts = m.ts
       WHERE o.series_id = ANY(${p(params, seriesIds)}::int[])
         AND o.ts >= to_timestamp(${p(params, from)} / 1000.0) AND o.ts < to_timestamp(${p(params, to)} / 1000.0)
       GROUP BY 1, 2`;
-    matchedSql = `WITH ${maskSql(conds, ids, from, to, matchedParams)}
-      SELECT ${bucketExpr(res, "m.ts")} AS b, count(*)::int AS n FROM mask m GROUP BY 1`;
+    matchedSql = `SELECT ${bucketExpr(res, "m.ts")} AS b, count(*)::int AS n FROM mask_q m GROUP BY 1`;
   } else if (res === "15min") {
     sql = `SELECT o.series_id, o.ts AS b, o.value AS sum, 1 AS count FROM observations o
       WHERE o.series_id = ANY(${p(params, seriesIds)}::int[])
@@ -203,8 +215,11 @@ export async function getTimeseries(q: HistoryQuery): Promise<TimeseriesResponse
 
   const client = await pool().connect();
   try {
-    await client.query("BEGIN READ ONLY");
+    // Not READ ONLY: condition queries create a temporary mask table (no persistent writes).
+    await client.query("BEGIN");
     await client.query("SET LOCAL statement_timeout = '45s'");
+    // Condition masks aggregate millions of rows; avoid spilling the hash aggregate to disk.
+    await client.query("SET LOCAL work_mem = '128MB'");
     const main = await aggregate(client, keys, from, to, res, conds, ids);
     let compare: SeriesBlock | null = null;
     if (q.compare) {

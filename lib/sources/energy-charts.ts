@@ -74,8 +74,18 @@ export function parseFrequency(json: unknown): { ts: number; hz: number }[] {
 
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 19) + "Z";
 
-async function getJson(path: string, ctx?: FetchContext, timeoutMs = 60_000): Promise<unknown> {
-  const res = await fetchWithRetry(`${BASE}${path}`, { timeoutMs, minIntervalMs: 500, signal: ctx?.signal });
+/**
+ * Energy-Charts answers bursts with HTTP 429, so requests are spaced by 1 s and retried up to
+ * 6 times with exponential backoff (honouring Retry-After). The live frequency poll does not
+ * retry – it simply tries again on its next tick.
+ */
+async function getJson(path: string, ctx?: FetchContext, opts: { timeoutMs?: number; retries?: number } = {}): Promise<unknown> {
+  const res = await fetchWithRetry(`${BASE}${path}`, {
+    timeoutMs: opts.timeoutMs ?? 60_000,
+    retries: opts.retries ?? 6,
+    minIntervalMs: 1_000,
+    signal: ctx?.signal,
+  });
   if (res.status === 404) return { series: [], data: [] }; // no data for the period
   if (!res.ok) throw new SourceError("energycharts", `HTTP ${res.status} for ${path.split("?")[0]}`);
   return res.json();
@@ -111,7 +121,7 @@ export async function fetchFlows(from: number, to: number, ctx?: FetchContext) {
 
 /** Frequency since `from` (exclusive) up to now; Energy-Charts allows at most 3 days. */
 export async function fetchFrequency(from: number, ctx?: FetchContext) {
-  const json = await getJson(`/frequency?region=DE-Freiburg&start=${iso(from)}&end=${iso(Date.now())}`, ctx, 10_000);
+  const json = await getJson(`/frequency?region=DE-Freiburg&start=${iso(from)}&end=${iso(Date.now())}`, ctx, { timeoutMs: 10_000, retries: 0 });
   return parseFrequency(json).filter((p) => p.ts > from);
 }
 

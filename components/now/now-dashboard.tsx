@@ -6,6 +6,7 @@ import { Card, CardError, CardTitle } from "@/components/ui/card";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatBerlin, formatGW } from "@/lib/format";
+import { track } from "@/lib/analytics/client";
 import { usePolling } from "@/lib/hooks/use-polling";
 import type { MixData } from "@/lib/queries/mix";
 import type { NowData, ZoneKey } from "@/lib/queries/now";
@@ -23,7 +24,11 @@ export function NowDashboard({ initialNow, initialPrices, initialMix }: Props) {
   const now = usePolling<NowData>("/api/now", 60_000, initialNow);
   const publicMode = now.data?.publicMode ?? initialNow?.publicMode ?? false;
   const prices = usePolling<PriceData>(publicMode ? null : "/api/prices?days=2", 60_000, initialPrices);
-  const [selected, setSelected] = useState<ZoneKey | null>(null);
+  const [selected, setSelectedState] = useState<ZoneKey | null>(null);
+  const setSelected = (z: ZoneKey) => {
+    setSelectedState(z);
+    track("zone_click", z);
+  };
   const [hovered, setHovered] = useState<ZoneKey | null>(null);
   const d = now.data;
 
@@ -102,7 +107,7 @@ export function NowDashboard({ initialNow, initialPrices, initialMix }: Props) {
         </div>
       </div>
 
-      <MixChart initial={initialMix} />
+      <MixChart initial={initialMix} onWindowChange={(w) => track("mix_window", w)} />
       <p className="mt-4 text-xs text-slate-500">
         Erzeugung und Netzlast nach SMARD, Netto-Import aus den physikalischen Grenzflüssen (Energy-Charts). Die Differenz
         aus Erzeugung und Last entspricht nicht exakt dem Netto-Import (Abgrenzung der Netzlast, Eigenverbrauch, Netzverluste).
@@ -116,7 +121,7 @@ function Kpi({ label, mw, title, note }: { label: string; mw: number | null | un
     <div title={title} className="relative">
       <dt className="text-sm text-slate-500">{label}</dt>
       <dd className="mt-0.5 min-w-20 text-2xl font-semibold tracking-tight tabular-nums">{mw == null ? "– GW" : `${formatGW(mw)} GW`}</dd>
-      {note ? <dd className="absolute top-full mt-0.5 text-xs whitespace-nowrap text-slate-400 tabular-nums">{note}</dd> : null}
+      {note ? <dd className="absolute top-full mt-0.5 text-xs whitespace-nowrap text-slate-500 tabular-nums">{note}</dd> : null}
     </div>
   );
 }

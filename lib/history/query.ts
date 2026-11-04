@@ -102,6 +102,7 @@ export const ZONE_KEYS = ["50Hertz", "Amprion", "TenneT", "TransnetBW"] as const
 export type ZoneRegion = (typeof ZONE_KEYS)[number];
 
 export function regionLabel(regions: readonly string[]): string {
+  if (regions.length === 0) return "keine Regelzone";
   return regions.length === ZONE_KEYS.length ? "alle Regelzonen (Deutschland)" : regions.join(" + ");
 }
 
@@ -156,9 +157,18 @@ export function parseQuery(params: URLSearchParams, now = today()): HistoryQuery
   const res = params.get("res");
   const rawRegions = list(params.get("regions"));
   // "DE" (older links / saved views) means all four control areas.
-  const regions = rawRegions?.includes("DE")
-    ? [...ZONE_KEYS]
-    : rawRegions?.filter((r): r is ZoneRegion => (ZONE_KEYS as readonly string[]).includes(r));
+  const validRegions = rawRegions?.filter((r): r is ZoneRegion => (ZONE_KEYS as readonly string[]).includes(r));
+  // "regions=" (empty) = explicitly none; only invalid values = default; "DE" (old links) = all four.
+  const regions =
+    rawRegions == null
+      ? undefined
+      : rawRegions.includes("DE")
+        ? [...ZONE_KEYS]
+        : rawRegions.length === 0
+          ? []
+          : validRegions?.length
+            ? validRegions
+            : undefined;
   const carriers = list(params.get("carriers"))?.filter((c): c is CarrierKey => ALL_CARRIERS.includes(c as CarrierKey));
   const metrics = list(params.get("metrics"))?.filter((m): m is Metric => METRICS.includes(m as Metric));
   const flow = params.get("flow");
@@ -170,7 +180,8 @@ export function parseQuery(params: URLSearchParams, now = today()): HistoryQuery
     to: to > now ? now : to < from ? from : to,
     res: res && (RESOLUTIONS as readonly string[]).includes(res) ? (res as Resolution) : "auto",
     compare: params.get("compare") === "1",
-    regions: regions?.length ? ZONE_KEYS.filter((z) => regions.includes(z)) : d.regions,
+    // An explicitly empty list ("regions=") is allowed, like for the carriers.
+    regions: regions ? ZONE_KEYS.filter((z) => regions.includes(z)) : d.regions,
     carriers: carriers ? ALL_CARRIERS.filter((c) => carriers.includes(c)) : d.carriers,
     metrics: metrics ? METRICS.filter((m) => metrics.includes(m)) : d.metrics,
     flow: flow && (NEIGHBOURS as readonly string[]).includes(flow) ? (flow as HistoryQuery["flow"]) : "sum",

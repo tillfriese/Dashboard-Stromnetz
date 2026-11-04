@@ -91,7 +91,7 @@ function PriceBody({ data }: { data: PriceData }) {
         {ticks.map((t) => (
           <g key={t}>
             <line x1={PAD_L} x2={W} y1={y(t)} y2={y(t)} className="stroke-slate-100" />
-            <text x={PAD_L - 4} y={y(t) + 3} textAnchor="end" className="fill-slate-400 text-[8px] tabular-nums">
+            <text x={PAD_L - 4} y={y(t) + 3} textAnchor="end" className="fill-slate-500 text-[8px] tabular-nums">
               {t}
             </text>
           </g>
@@ -110,10 +110,10 @@ function PriceBody({ data }: { data: PriceData }) {
           </g>
         ) : null}
         {data.dayBoundaries.slice(0, data.tomorrowAvailable ? 2 : 1).flatMap((d, i) => [
-          <text key={`d${i}`} x={x(d) + 2} y={H + 14} className="fill-slate-400 text-[8px]">
+          <text key={`d${i}`} x={x(d) + 2} y={H + 14} className="fill-slate-500 text-[8px]">
             {i === 0 ? "heute" : "morgen"}
           </text>,
-          <text key={`n${i}`} x={x(d + 12 * 3600_000)} y={H + 14} textAnchor="middle" className="fill-slate-400 text-[8px]">
+          <text key={`n${i}`} x={x(d + 12 * 3600_000)} y={H + 14} textAnchor="middle" className="fill-slate-500 text-[8px]">
             12:00
           </text>,
         ])}
