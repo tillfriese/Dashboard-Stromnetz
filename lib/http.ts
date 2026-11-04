@@ -1,15 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
-export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: string,
-    url: string,
-  ) {
-    super(`HTTP ${status} for ${redact(url)}`);
-  }
-}
-
 /** Removes credentials from URLs before they end up in logs or error messages. */
 export function redact(url: string): string {
   return url.replace(/(securityToken|token)=[^&]+/gi, "$1=***");

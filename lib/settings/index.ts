@@ -18,7 +18,6 @@ export const SETTING_DEFS = {
   "stats.retentionDays": { secret: false, default: "90" },
 } as Record<string, { secret: boolean; env?: string; default?: string; internal?: boolean }>;
 
-export type SettingKey = keyof typeof SETTING_DEFS;
 
 function key() {
   return parseKey(process.env.SETTINGS_ENCRYPTION_KEY);

@@ -1,9 +1,42 @@
 # Netzlage Deutschland
 
-Dashboard zum deutschen Stromnetz: aktuelle Lage (`/`) und historische Daten (`/historie`).
-Next.js (App Router, standalone) + PostgreSQL/TimescaleDB, als ein Docker-Compose-Stack.
+Dashboard zum deutschen Stromnetz: aktuelle Lage (`/`) und historische Daten seit 2015 (`/historie`).
+Studentisches Projekt von Till Friese (Kontakt: mail@tillfriese.me).
 
-> Stand: **Phase 7 (Feinschliff) abgeschlossen** – alle Phasen des Auftrags sind umgesetzt.
+## Funktionen im Überblick
+
+- **Aktuell:** Erzeugung, Verbrauch und Netto-Import der letzten vollständigen Viertelstunde, Karte der vier
+  Regelzonen mit Saldo und Grenzflüssen, Erneuerbaren-Anteil, CO₂-Intensität, Netzfrequenz (sekündlich),
+  Day-Ahead-Preise und Strommix mit Prognose. Aktualisiert sich jede Minute.
+- **Historie:** frei wählbarer Zeitraum (eigene Datumsauswahl), Auflösung von 15 Minuten bis Jahr, Regelzonen,
+  Energieträger, Kennzahlen (Netzlast, Residuallast, Preis, CO₂, Netto-Import, installierte Leistung),
+  Bedingungen je Viertelstunde (z. B. „Preis < 0 und Wochenende“), Vorjahresvergleich, Heatmap,
+  Drill-down per Klick, Tabelle und CSV-Export. Der Filterzustand steht in der URL.
+- **Vorlagen und Konten:** Gäste nutzen die Vorlagen „Standard“ (letzte 30 Tage) und „Alle Daten“ (seit 2015).
+  Mit Konto (Passkey oder E-Mail + Passwort) lassen sich eigene Ansichten speichern.
+- **Admin-Bereich:** Datenquellen und Tokens, Datenimport, Nutzerverwaltung, Systemzustand und eine
+  cookielose Besucherstatistik.
+- **Barrierefreiheit:** WCAG 2.1 AA (automatisch geprüft), Tastaturbedienung, Dark Mode, responsiv ab 360 px.
+
+## Technik
+
+| Bereich | Umsetzung |
+|---|---|
+| Frontend | Next.js 16 (App Router, `output: standalone`), React 19, TypeScript strict, Tailwind CSS 4, Recharts |
+| Daten | PostgreSQL 18 + TimescaleDB (Hypertables, Continuous Aggregates, Kompression), Drizzle ORM |
+| Abruf | Scheduler (`node-cron`) im App-Prozess, fortsetzbarer Import, CLI für Backfill und Notfall-Zugang |
+| Anmeldung | Better Auth mit Passkeys (WebAuthn) und E-Mail/Passwort, Rollen `user`/`admin` |
+| Tests | Vitest (Unit), Playwright (E2E inkl. virtuellem WebAuthn-Authenticator), axe-core (Barrierefreiheit) |
+| Betrieb | Docker Compose (App + Datenbank, optional Caddy für HTTPS) |
+
+```
+app/          Seiten und API-Routen (App Router)
+components/   UI-Komponenten (now = „Aktuell“, history = „Historie“, admin, account, ui)
+lib/          Datenquellen, Import, Abfragen, Auth, Statistik, Hilfsfunktionen
+drizzle/      SQL-Migrationen (inkl. TimescaleDB)
+e2e/          Playwright-Tests        scripts/   CLI und Build-Skripte
+docs/         Auftrag und Mockups
+```
 
 ## Schnellstart
 
@@ -112,7 +145,7 @@ wo er aufgehört hat. Der komplette SMARD-Bestand seit 2015 dauert einige Stunde
 
 | Job | Zeitplan (Europe/Berlin) |
 |---|---|
-| SMARD, Grenzflüsse (Energy-Charts), Netzampel BW: letzte 2 Tage + Prognosen | alle 15 min |
+| SMARD, Grenzflüsse (Energy-Charts), StromGedacht: letzte 2 Tage + Prognosen | alle 15 min |
 | Day-Ahead-Preise heute und morgen | stündlich (:07) |
 | ENTSO-E-Grenzflüsse (nur mit Token) | stündlich (:20) |
 | Revision der letzten 60 Tage (Upsert) | täglich 03:30 |
@@ -127,10 +160,13 @@ Eigenheiten der Quellen:
   `PUBLIC_MODE` bleibt trotzdem vorhanden.
 - **Netzfrequenz:** Gridradar mit Token, sonst `/v2/frequency` von Energy-Charts (ca. 1–2 min Verzug).
 - **StromGedacht:** Die API liefert nur die letzten 4 Tage und 2 Tage Vorschau, daher kein Import der Historie.
+  Die Netzampel wird abgerufen und gespeichert, im Dashboard aber derzeit nicht angezeigt.
+- **Installierte Leistung:** Energy-Charts (`/v2/installed_power`) liefert Wind, PV und Biomasse monatlich, die
+  übrigen Energieträger nur als Jahreswerte. Beides wird kombiniert (konventionelle Kraftwerke als Jahresendstand).
 - **ENTSO-E:** optional, nur mit Token. Der Parser ist gegen ein selbst gebautes Beispiel getestet,
   weil ohne Token keine echte Antwort aufgezeichnet werden konnte.
 
-## Kennzahlen auf „Jetzt“
+## Kennzahlen auf „Aktuell“
 
 - **Zeitpunkt:** die letzte *vollständige* Viertelstunde (alle großen Energieträger und die Netzlast liegen vor).
 - **Erneuerbaren-Anteil:** Anteil an der Nettoerzeugung (Wasser, Biomasse, Wind, PV, sonstige Erneuerbare),
@@ -154,14 +190,18 @@ Eigenheiten der Quellen:
 - **Bedingungen** (`cond=price.lt.0`, `cond=re.gt.80`, `cond=residual.lt.0`, `cond=load.gt.70`, `cond=co2.lt.200`,
   `cond=dow.67`, `cond=hour.10-15`) werden UND-verknüpft je Viertelstunde auf den Rohdaten ausgewertet, erst danach
   wird aggregiert. Stündliche Preise vor Oktober 2025 gelten für alle vier Viertelstunden der Stunde.
-- Gespeicherte Ansichten sind privat je Konto (max. 100). Gäste nutzen die Standardfilter oder teilen Ansichten per Link.
+- Ohne Parameter öffnet `/historie` die Vorlage „Standard“ (letzte 30 Tage, ohne zusätzliche Kennzahl-Diagramme).
+  Links ohne `metrics`-Parameter (ältere Links) zeigen weiterhin die Netzlast.
+- Sind alle vier Regelzonen gewählt, nutzt die Historie die offizielle Deutschland-Summe von SMARD. Die Zonenreihen
+  haben in der Quelle Lücken und Ausreißer (z. B. Amprion „Sonstige Konventionelle“: leer vom 31.12.2016 bis Ende 2017).
+- Gespeicherte Ansichten sind privat je Konto (max. 100). Gäste nutzen die Vorlagen oder teilen Ansichten per Link.
 - Nach einem Import älterer Zeiträume frischt der Import die Continuous Aggregates selbst auf (die Policies decken
   nur die letzten 60 Tage ab). Für manuell eingespielte Daten: `CALL refresh_continuous_aggregate('obs_daily', '2015-01-01', now() - interval '60 days');` (ebenso für `obs_hourly`).
 
 ## Besucherstatistik (ohne Cookies)
 
 - Selbst gehostet, keine Drittanbieter, **keine Cookies, kein `localStorage` für Kennungen, kein Fingerprinting**.
-  Ein Cookie-Banner ist dafür nicht nötig; die Hinweise stehen im Impressum (Abschnitt „Datenschutz“, Platzhaltertext).
+  Ein Cookie-Banner ist dafür nicht nötig; die Hinweise stehen im Impressum (Abschnitt „Datenschutz“).
 - Sitzungs-ID = SHA-256 aus täglich wechselndem Salt, IP und User-Agent (gekürzt). Der Salt liegt verschlüsselt in
   den Einstellungen und wird um 00:00 Uhr (Europe/Berlin) ersetzt, der alte ist danach weg. **IP-Adressen werden nie
   gespeichert**, vom User-Agent nur Gerätetyp, Browser- und OS-Familie mit Hauptversion.
@@ -193,7 +233,8 @@ npm run lint && npm run typecheck && npm test
 
 **End-to-End-Tests** (Playwright mit virtuellem WebAuthn-Authenticator) laufen gegen den Compose-Stack
 auf `http://localhost:3000` und brauchen Internet (echte Testimporte). **Achtung:** Sie löschen vorher
-und nachher alle Admin-Accounts und Einstellungen dieses Stacks – nur lokal ausführen.
+und nachher alle Konten und Einstellungen dieses Stacks – nur lokal ausführen. Der Test für ENTSO-E-Tokens
+fragt die echte ENTSO-E-API ab und kann bei deren Zeitüberschreitung fehlschlagen.
 
 ```bash
 npx playwright install chromium   # einmalig

@@ -25,8 +25,5 @@ export const REGIONS = [
   { key: "TransnetBW", label: "TransnetBW", states: ["BW"] },
 ] as const;
 
-export type RegionKey = (typeof REGIONS)[number]["key"];
-
 /** The 11 neighbouring countries with physical cross-border flows. */
 export const NEIGHBOURS = ["NO", "DK", "SE", "NL", "BE", "LU", "FR", "CH", "AT", "CZ", "PL"] as const;
-export type NeighbourKey = (typeof NEIGHBOURS)[number];

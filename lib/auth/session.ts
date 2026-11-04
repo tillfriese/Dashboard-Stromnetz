@@ -2,8 +2,6 @@ import { headers } from "next/headers";
 import { auth } from "./index";
 
 export type UserSession = NonNullable<Awaited<ReturnType<ReturnType<typeof auth>["api"]["getSession"]>>>;
-/** Kept for existing imports: an admin session is a user session with role "admin". */
-export type AdminSession = UserSession;
 
 export const isAdmin = (s: UserSession | null | undefined) => (s?.user as { role?: string } | undefined)?.role === "admin";
 

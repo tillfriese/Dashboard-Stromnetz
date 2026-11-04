@@ -18,8 +18,6 @@ const MAX_FUTURE_MS = 2 * 24 * 3600_000 - 3600_000;
 
 const BASE = "https://api.stromgedacht.de/v1";
 export const STROMGEDACHT_KEY = "stromgedacht:state:BW";
-export const GRID_STATES = { [-1]: "supergruen", 1: "gruen", 3: "orange", 4: "rot" } as const;
-
 const schema = z.object({
   states: z.array(z.object({ from: z.string(), to: z.string(), state: z.number().int() })),
 });

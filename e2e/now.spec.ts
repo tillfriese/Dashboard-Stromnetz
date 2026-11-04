@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { newPageWithAuthenticator, psql, setupAdmin } from "./helpers";
 
-/* Phase 4: "Jetzt" page with real data (needs data from the scheduler, i.e. a running stack). */
+/* Phase 4: "Aktuell" page with real data (needs data from the scheduler, i.e. a running stack). */
 
-test.describe("Seite „Jetzt“", () => {
+test.describe("Seite „Aktuell“", () => {
   test("API liefert aktuelle Kennzahlen, vier Regelzonen und Grenzflüsse", async ({ request }) => {
     const res = await request.get("/api/now");
     expect(res.status()).toBe(200);

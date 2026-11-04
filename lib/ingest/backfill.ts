@@ -233,8 +233,4 @@ async function runJob(initial: BackfillJob, onProgress?: (job: BackfillJob) => v
 }
 
 /** Months in the job range, for the UI. */
-export function jobMonths(job: Pick<BackfillJob, "rangeFrom" | "rangeTo">) {
-  const { from, to } = rangeMs(job);
-  return berlinMonths(from, to).map((m) => m.label);
-}
 
