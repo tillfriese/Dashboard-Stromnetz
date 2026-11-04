@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC fixture built from the documented A11 schema (no token available when recording).
+     Replace with a recorded response once an ENTSO-E token is configured. -->
+<Publication_MarketDocument xmlns="urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3">
+  <mRID>synthetic</mRID>
+  <type>A11</type>
+  <TimeSeries>
+    <mRID>1</mRID>
+    <in_Domain.mRID codingScheme="A01">10Y1001A1001A83F</in_Domain.mRID>
+    <out_Domain.mRID codingScheme="A01">10YFR-RTE------C</out_Domain.mRID>
+    <quantity_Measure_Unit.name>MAW</quantity_Measure_Unit.name>
+    <curveType>A03</curveType>
+    <Period>
+      <timeInterval>
+        <start>2026-03-28T23:00Z</start>
+        <end>2026-03-29T01:00Z</end>
+      </timeInterval>
+      <resolution>PT15M</resolution>
+      <Point><position>1</position><quantity>1200</quantity></Point>
+      <Point><position>2</position><quantity>1250</quantity></Point>
+      <Point><position>5</position><quantity>900</quantity></Point>
+      <Point><position>8</position><quantity>1000</quantity></Point>
+    </Period>
+  </TimeSeries>
+</Publication_MarketDocument>

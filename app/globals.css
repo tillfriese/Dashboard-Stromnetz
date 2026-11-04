@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens for "Netzlage".
+ * Semantics are fixed across the app:
+ *   indigo = surplus / export, amber = deficit / import / need for conventional generation.
+ * Energy carrier colours have a fixed order and are never reassigned cyclically.
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Semantic colours */
+  --color-surplus: var(--color-indigo-600);
+  --color-surplus-soft: var(--color-indigo-200);
+  --color-deficit: var(--color-amber-600);
+  --color-deficit-soft: var(--color-amber-200);
+
+  /* Energy carriers (fixed order) */
+  --color-carrier-hydro: #19a3b8;
+  --color-carrier-biomass: #008300;
+  --color-carrier-wind: #2a78d6;
+  --color-carrier-solar: #eda100;
+  --color-carrier-lignite: #9c4a1a;
+  --color-carrier-hardcoal: #6250d6;
+  --color-carrier-gas: #eb6834;
+  --color-carrier-nuclear: #b24f8a;
+  --color-carrier-other: #8a8f98;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 font-sans text-slate-900 antialiased;
+  }
+
+  /* Visible indigo focus ring for every interactive element. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    @apply outline-2 outline-offset-2 outline-indigo-600;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-slate-200/60 bg-white shadow-sm transition-all duration-200 hover:shadow-md;
+  }
+
+  .section-label {
+    @apply text-xs font-medium tracking-wider text-slate-500 uppercase;
+  }
+}

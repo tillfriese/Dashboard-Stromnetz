@@ -1,0 +1,68 @@
+name: netzlage
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: netzlage
+      POSTGRES_USER: netzlage
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in .env}
+      TZ: UTC
+    # PostgreSQL 18 images keep data under /var/lib/postgresql/<major>/docker,
+    # so the volume is mounted one level up (see README, "Datenbank-Volume").
+    volumes:
+      - netzlage-pg:/var/lib/postgresql
+    shm_size: 512mb
+    # No published port: the database is only reachable inside the compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netzlage -d netzlage"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build: .
+    image: netzlage-app:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://netzlage:${POSTGRES_PASSWORD}@db:5432/netzlage
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # Optional HTTPS reverse proxy with automatic Let's Encrypt certificates.
+  # Start with: docker compose --profile https up -d
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  netzlage-pg:
+  caddy-data:
+  caddy-config:
