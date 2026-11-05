@@ -86,7 +86,11 @@ export function NowDashboard({ initialNow, initialPrices, initialMix }: Props) {
                 <ZoneMap zones={d.zones} flows={d.flows} selected={selected} hovered={hovered} onSelect={setSelected} onHover={setHovered} />
                 <p className="mt-4 text-xs leading-relaxed text-slate-500">
                   Gebiete vereinfacht nach Bundesländern zugeordnet (die echten Regelzonen folgen nicht den Landesgrenzen).
-                  Grenzflüsse: Energy-Charts{d.flowsAsOf ? `, Stand ${formatBerlin(d.flowsAsOf, "HH:mm")} Uhr (mehrere Stunden Verzug)` : ""}. Flüsse zwischen den
+                  Grenzflüsse: {d.flowsSource === "entsoe" ? "ENTSO-E Transparency Platform" : "Energy-Charts"}
+                  {d.flowsAsOf
+                    ? `, Stand ${formatBerlin(d.flowsAsOf, "HH:mm")} Uhr${d.flowsSource === "entsoe" ? "" : " (mehrere Stunden Verzug)"}`
+                    : ""}
+                  . Flüsse zwischen den
                   Regelzonen sind nicht öffentlich und werden nicht gezeigt. Karte: MapSVG / svg-maps, CC BY 4.0.
                 </p>
               </div>

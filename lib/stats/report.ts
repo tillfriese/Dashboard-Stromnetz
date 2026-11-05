@@ -199,3 +199,22 @@ export async function setRetention(days: number) {
     await pool().query(`SELECT add_retention_policy($1, make_interval(days => $2))`, [table, days]);
   }
 }
+
+/**
+ * Deletes all visitor statistics: single sessions and events plus the long-lived aggregates
+ * (totals, history, rankings). Settings such as the retention period and saved views are kept.
+ */
+export async function resetStats() {
+  const client = await pool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("TRUNCATE visits, visit_events");
+    await client.query("TRUNCATE visits_hourly, visit_events_daily");
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}

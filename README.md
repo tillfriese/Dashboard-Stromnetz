@@ -147,7 +147,7 @@ wo er aufgehört hat. Der komplette SMARD-Bestand seit 2015 dauert einige Stunde
 |---|---|
 | SMARD, Grenzflüsse (Energy-Charts), StromGedacht: letzte 2 Tage + Prognosen | alle 15 min |
 | Day-Ahead-Preise heute und morgen | stündlich (:07) |
-| ENTSO-E-Grenzflüsse (nur mit Token) | stündlich (:20) |
+| ENTSO-E-Grenzflüsse, letzter Tag (nur mit Token) | alle 15 min (:05, :20, :35, :50) |
 | Revision der letzten 60 Tage (Upsert) | täglich 03:30 |
 | Netzfrequenz (nur im Arbeitsspeicher) | alle 5 s |
 
@@ -163,8 +163,10 @@ Eigenheiten der Quellen:
   Die Netzampel wird abgerufen und gespeichert, im Dashboard aber derzeit nicht angezeigt.
 - **Installierte Leistung:** Energy-Charts (`/v2/installed_power`) liefert Wind, PV und Biomasse monatlich, die
   übrigen Energieträger nur als Jahreswerte. Beides wird kombiniert (konventionelle Kraftwerke als Jahresendstand).
-- **ENTSO-E:** optional, nur mit Token. Der Parser ist gegen ein selbst gebautes Beispiel getestet,
-  weil ohne Token keine echte Antwort aufgezeichnet werden konnte.
+- **ENTSO-E:** optional, nur mit Token. Physikalische Grenzflüsse (A11) je Grenze in beide Richtungen,
+  15-Minuten-Werte mit etwa 15–60 min Verzug. Mit der echten API geprüft: Für gemeinsame Viertelstunden
+  weichen die Werte im Mittel um höchstens ca. 10 MW von Energy-Charts ab. Die jeweils neueste Viertelstunde
+  ist oft noch vorläufig und wird für „Aktuell“ nicht verwendet.
 
 ## Kennzahlen auf „Aktuell“
 
@@ -175,7 +177,9 @@ Eigenheiten der Quellen:
   (Climate Change 13/2025, Tabelle 4: Braunkohle 1.119, Steinkohle 860, Erdgas 392 g/kWh). „Sonstige
   Konventionelle“ (800 g/kWh) ist eine eigene Abschätzung, siehe `lib/energy.ts`. Der Wert ist nicht direkt
   mit dem verbrauchsbezogenen UBA-Jahreswert (363 g/kWh für 2024) vergleichbar.
-- **Netto-Import:** Saldo der physikalischen Grenzflüsse (Energy-Charts, mehrere Stunden Verzug). Er
+- **Netto-Import und Grenzflüsse:** Saldo der physikalischen Grenzflüsse. Angezeigt wird die Quelle mit der
+  neueren vollständigen Viertelstunde (höchstens bis zum Zeitpunkt oben): mit ENTSO-E-Token meist ENTSO-E
+  (etwa so aktuell wie SMARD), sonst Energy-Charts (mehrere Stunden Verzug). Die Historie nutzt Energy-Charts. Er
   entspricht nicht exakt „Netzlast − Erzeugung“ nach SMARD (Abgrenzung der Netzlast, Eigenverbrauch, Verluste).
 - **Karte:** `@svg-maps/germany` (MapSVG, CC BY 4.0), zur Build-Zeit zu vier Regelzonen vereinigt
   (`npm run build:map` → `lib/map/germany-zones.json`). Die Zuordnung nach Bundesländern ist eine Vereinfachung.
@@ -211,6 +215,8 @@ Eigenheiten der Quellen:
   Datei ins Volume legen und `GEOIP_DB_PATH=/pfad/zur/datei.mmdb` setzen.
 - Rohdaten (`visits`, `visit_events`) werden nach 90 Tagen gelöscht (im Tab „Besucher“ einstellbar). Die Aggregate
   `visits_hourly` und `visit_events_daily` bleiben unbegrenzt erhalten.
+- „Statistik zurücksetzen“ im Tab „Besucher“ (nach Rückfrage, `DELETE /api/admin/stats/reset`) leert Rohdaten und
+  Aggregate. Aufbewahrungsdauer und gespeicherte Ansichten bleiben erhalten.
 
 ## Barrierefreiheit und Darstellung
 

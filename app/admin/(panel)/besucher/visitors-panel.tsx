@@ -39,7 +39,10 @@ export function VisitorsPanel({ today }: { today: string }) {
     p === "today" ? { from: today, to: today } : p === "7d" ? { from: shift(today, -6), to: today } : p === "30d" ? { from: shift(today, -29), to: today } : custom;
   const { from, to } = rangeFor(preset);
   const qs = `from=${from}&to=${to}`;
-  const { data, error, loading } = useJson<StatsReport>(`/api/admin/stats?${qs}`);
+  // Bumped after a reset so the report and the session list are fetched again.
+  const [rev, setRev] = useState(0);
+  const dataQs = rev ? `${qs}&rev=${rev}` : qs;
+  const { data, error, loading } = useJson<StatsReport>(`/api/admin/stats?${dataQs}`);
 
   return (
     <div className="space-y-6">
@@ -73,12 +76,15 @@ export function VisitorsPanel({ today }: { today: string }) {
             <HeatCard r={data} />
           </div>
           <Rankings r={data} />
-          <Sessions qs={qs} retentionDays={data.retentionDays} />
+          <Sessions key={dataQs} qs={dataQs} retentionDays={data.retentionDays} />
           <div className="grid gap-6 xl:grid-cols-2">
             <VitalsCard r={data} />
             <ErrorsCard r={data} />
           </div>
-          <RetentionCard days={data.retentionDays} />
+          <div className="grid gap-6 xl:grid-cols-2">
+            <RetentionCard days={data.retentionDays} />
+            <ResetCard onReset={() => setRev((r) => r + 1)} />
+          </div>
         </div>
       )}
     </div>
@@ -422,6 +428,44 @@ function RetentionCard({ days }: { days: number }) {
           Speichern
         </Button>
       </form>
+      {msg ? (
+        <div className="mt-3">
+          <Alert tone={msg.tone}>{msg.text}</Alert>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function ResetCard({ onReset }: { onReset: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  return (
+    <Card labelledBy="vs-reset">
+      <CardTitle id="vs-reset" sub="Löscht alle Sitzungen, Ereignisse, Tageswerte und Ranglisten. Einstellungen und gespeicherte Ansichten bleiben erhalten.">
+        Statistik zurücksetzen
+      </CardTitle>
+      <div className="mt-4">
+        <Button
+          variant="danger"
+          disabled={busy}
+          onClick={async () => {
+            if (!confirm("Alle Besucherstatistiken endgültig löschen? Das lässt sich nicht rückgängig machen.")) return;
+            setBusy(true);
+            const res = await fetch("/api/admin/stats/reset", { method: "DELETE" }).catch(() => null);
+            setBusy(false);
+            if (res?.ok) {
+              setMsg({ tone: "success", text: "Statistik zurückgesetzt." });
+              onReset();
+            } else {
+              const body = await res?.json().catch(() => null);
+              setMsg({ tone: "error", text: body?.error ?? "Zurücksetzen fehlgeschlagen" });
+            }
+          }}
+        >
+          {busy ? "Wird gelöscht …" : "Alle Daten löschen"}
+        </Button>
+      </div>
       {msg ? (
         <div className="mt-3">
           <Alert tone={msg.tone}>{msg.text}</Alert>

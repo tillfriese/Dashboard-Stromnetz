@@ -44,11 +44,12 @@ const JOBS: JobDef[] = [
   },
   {
     name: "entsoe",
-    label: "ENTSO-E Grenzflüsse (nur mit Token)",
-    cron: "20 * * * *",
+    label: "ENTSO-E Grenzflüsse, letzter Tag (nur mit Token)",
+    // Every 15 min (offset to the SMARD job): ENTSO-E is the fresher source for the map on "Aktuell".
+    cron: "5,20,35,50 * * * *",
     run: async () => {
       if (!(await getSetting("entsoe.token"))) return;
-      await ingestRange("entsoe", Date.now() - 2 * DAY, Date.now(), "recent");
+      await ingestRange("entsoe", Date.now() - DAY, Date.now(), "recent");
     },
   },
   {
@@ -115,6 +116,7 @@ export function startScheduler() {
   // Fill the "now" view right after start instead of waiting up to 15 minutes.
   void tasks.get("recent")!.task.execute();
   void tasks.get("prices")!.task.execute();
+  void tasks.get("entsoe")!.task.execute(); // returns at once without a token
   console.info(`[scheduler] started ${tasks.size} jobs`);
 }
 

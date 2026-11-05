@@ -2,8 +2,10 @@ import { CARRIERS, type CarrierKey, NEIGHBOURS } from "@/lib/carriers";
 import { byCarrier, co2Intensity, GENERATION_METRICS, type GenerationSnapshot, isComplete, renewableShare, totalGeneration } from "@/lib/energy";
 import { isPublicMode } from "@/lib/settings";
 import { flowKey, NET_IMPORT_KEY } from "@/lib/sources/energy-charts";
+import { entsoeFlowKey } from "@/lib/sources/entsoe";
 import { smardSeriesKey } from "@/lib/sources/smard";
 import { addBerlinDays, QUARTER_HOUR_MS, startOfBerlinDay } from "@/lib/time";
+import { latestCompleteFlows, newerSnapshot } from "./flows";
 import { freshnessBySource, latestTimestamps, loadSeries } from "./series";
 
 export const ZONES = [
@@ -37,6 +39,8 @@ export type NowData = {
   zones: ZoneNow[];
   flows: { country: string; mw: number }[];
   flowsAsOf: number | null;
+  /** Source of the shown cross-border flows: whichever has the newer complete quarter hour. */
+  flowsSource: "energycharts" | "entsoe" | null;
   freshness: Record<string, number | null>;
   publicMode: boolean;
 };
@@ -85,6 +89,7 @@ export async function getNowData(): Promise<NowData> {
     zones: [],
     flows: [],
     flowsAsOf: null,
+    flowsSource: null,
     freshness,
     publicMode,
   };
@@ -132,31 +137,26 @@ export async function getNowData(): Promise<NowData> {
     };
   });
 
-  // Cross-border flows (Energy-Charts, several hours delayed). The newest quarter hour is often
-  // still incomplete (not yet reported borders appear as exactly 0), so we take the newest
-  // quarter hour <= asOf in which at most one border reports exactly 0.
-  const flowKeys = [...NEIGHBOURS.map(flowKey), NET_IMPORT_KEY];
-  const flowLatest = await latestTimestamps(flowKeys);
-  const newestFlow = flowLatest.get(NET_IMPORT_KEY);
-  let flowTs: number | null = null;
-  let flowData = new Map<string, Map<number, number>>();
-  if (newestFlow != null) {
-    const upper = Math.min(asOf, newestFlow);
-    flowData = await loadSeries(flowKeys, upper - 12 * 3600_000, upper + 1);
-    for (let ts = upper; ts > upper - 12 * 3600_000; ts -= QUARTER_HOUR_MS) {
-      const vals = NEIGHBOURS.map((cc) => flowData.get(flowKey(cc))?.get(ts));
-      if (vals.some((v) => v == null)) continue;
-      if (vals.filter((v) => v === 0).length <= 1) {
-        flowTs = ts;
-        break;
-      }
-    }
-  }
-  const flows = NEIGHBOURS.flatMap((cc) => {
-    const v = flowData.get(flowKey(cc))?.get(flowTs ?? -1);
-    return v == null ? [] : [{ country: cc, mw: v }];
-  });
-  const netImport = flowData.get(NET_IMPORT_KEY)?.get(flowTs ?? -1) ?? null;
+  // Cross-border flows from two sources: Energy-Charts (several hours delayed) and, with a token,
+  // ENTSO-E (usually about one hour). The newer complete quarter hour <= asOf is shown.
+  const ecKeys = [...NEIGHBOURS.map(flowKey), NET_IMPORT_KEY];
+  const enKeys = NEIGHBOURS.map(entsoeFlowKey);
+  const [latestFlows, latestEntsoe] = await Promise.all([latestTimestamps(ecKeys, asOf), latestTimestamps(enKeys)]);
+  // The newest ENTSO-E quarter hour of a border is often still provisional (e.g. a direction at 0),
+  // so ENTSO-E is only used up to the quarter hour before the newest value of every border.
+  const entsoeUpper =
+    latestEntsoe.size === enKeys.length ? Math.min(asOf, ...enKeys.map((k) => latestEntsoe.get(k)! - QUARTER_HOUR_MS)) : -Infinity;
+  const lookbackMs = 12 * 3600_000;
+  const loadFlows = async (keys: string[], upper: number) =>
+    Number.isFinite(upper) ? { upper, data: await loadSeries(keys, upper - lookbackMs - 3600_000, upper + 1) } : null;
+  const [ec, en] = await Promise.all([
+    loadFlows(ecKeys, Math.max(-Infinity, ...ecKeys.map((k) => latestFlows.get(k) ?? -Infinity))),
+    loadFlows(enKeys, entsoeUpper),
+  ]);
+  // Energy-Charts reports borders that are not yet available as exactly 0; ENTSO-E leaves them out.
+  const ecSnap = ec && latestCompleteFlows(ec.data, NEIGHBOURS, ec.upper, { keyFor: flowKey, netKey: NET_IMPORT_KEY, maxAgeMs: QUARTER_HOUR_MS, maxZeros: 1, lookbackMs });
+  const enSnap = en && latestCompleteFlows(en.data, NEIGHBOURS, en.upper, { keyFor: entsoeFlowKey, maxAgeMs: 3600_000, maxZeros: NEIGHBOURS.length, lookbackMs });
+  const flowSnap = newerSnapshot(ecSnap ? { ...ecSnap, source: "energycharts" as const } : null, enSnap ? { ...enSnap, source: "entsoe" as const } : null);
 
   return {
     hasData: true,
@@ -164,7 +164,7 @@ export async function getNowData(): Promise<NowData> {
     kpis: {
       generationMW: totalGeneration(de),
       loadMW: load,
-      netImportMW: netImport,
+      netImportMW: flowSnap?.netImportMW ?? null,
       residualMW: residual,
     },
     renewable: { share: renewableShare(de), yesterday: isComplete(snapshot(prev, "DE", yesterday)) ? renewableShare(snapshot(prev, "DE", yesterday)) : null },
@@ -175,8 +175,9 @@ export async function getNowData(): Promise<NowData> {
     },
     mix: mixList(de),
     zones,
-    flows,
-    flowsAsOf: flowTs,
+    flows: flowSnap?.flows ?? [],
+    flowsAsOf: flowSnap?.ts ?? null,
+    flowsSource: flowSnap?.source ?? null,
     freshness,
     publicMode,
   };

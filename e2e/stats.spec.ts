@@ -161,6 +161,17 @@ test.describe.serial("Besucherstatistik", () => {
     expect(put.status()).toBe(200);
     expect(psql(`SELECT config->>'drop_after' FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention' AND hypertable_name = 'visits'`)).toBe("30 days");
     await page.request.put("/api/admin/stats/retention", { data: { days: 90 } });
+
+    // Reset deletes raw data and aggregates (after confirmation); settings stay.
+    const visitorsAgg = () => count(`SELECT count(*) FROM visits_hourly`) + count(`SELECT count(*) FROM visit_events_daily`);
+    expect(visitorsAgg()).toBeGreaterThan(0);
+    page.once("dialog", (d) => d.accept());
+    await page.getByRole("button", { name: "Alle Daten löschen" }).click();
+    await expect(page.getByText("Statistik zurückgesetzt.")).toBeVisible();
+    await expect(kpis.locator("div", { hasText: "Besucher (Sitzungen)" })).toContainText("0");
+    await expect(sessions.getByText("Keine Sitzungen im Zeitraum.")).toBeVisible();
+    expect(count(`SELECT count(*) FROM visits`) + count(`SELECT count(*) FROM visit_events`) + visitorsAgg()).toBe(0);
+    expect(psql(`SELECT config->>'drop_after' FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention' AND hypertable_name = 'visits'`)).toBe("90 days");
     await ctx.close();
   });
 });
