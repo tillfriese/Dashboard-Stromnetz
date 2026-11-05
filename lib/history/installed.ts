@@ -3,7 +3,9 @@ import { fetchWithRetry } from "@/lib/http";
 
 /*
  * Installed capacity per carrier from Energy-Charts (/v2/installed_power, Germany, GW).
- * Fetched on demand and cached in memory for 12 h; not stored in the database.
+ * Kept in memory (not in the database): loaded at startup and refreshed daily by the scheduler,
+ * with patient retries because Energy-Charts rate limits per IP (HTTP 429 with Retry-After).
+ * Page requests only read the cache; a failed refresh keeps the previous data.
  *
  * Energy-Charts publishes two series (timestamp_reference = period_end):
  *  - monthly: only wind, solar, biomass and batteries (from the Marktstammdatenregister),
@@ -32,7 +34,8 @@ const schema = z.object({
 
 type Values = Record<string, number | null>;
 export type InstalledPoint = { ts: number; values: Values };
-const g = globalThis as unknown as { netzlageInstalled?: { at: number; points: InstalledPoint[] } };
+type Cache = { at: number; complete: boolean; points: InstalledPoint[] };
+const g = globalThis as unknown as { netzlageInstalled?: Cache; netzlageInstalledLoad?: Promise<void>; netzlageInstalledFail?: number };
 
 /** Sums the Energy-Charts ids of each carrier; a carrier is null only if none of its ids has a value. */
 function toCarriers(row: Record<string, number | null>): Values {
@@ -81,11 +84,12 @@ const URL_BASE = "https://api.energy-charts.info/v2/installed_power?country=de&i
 const FULL_TTL_MS = 12 * 3600_000;
 /** Incomplete result (yearly series failed) or failure: retried after a short pause only. */
 const RETRY_TTL_MS = 10 * 60_000;
-const gi = globalThis as unknown as { netzlageInstalledLoad?: Promise<void>; netzlageInstalledFail?: number };
+/** A page request without any cached data waits at most this long for the download. */
+const REQUEST_WAIT_MS = 20_000;
 
 async function load(): Promise<void> {
-  // Few retries: this runs during page rendering; Energy-Charts rate limits (HTTP 429) quickly.
-  const opts = { timeoutMs: 15_000, retries: 1, minIntervalMs: 1_000 };
+  // Patient: Energy-Charts answers bursts with 429 and Retry-After (seconds); this runs in the background.
+  const opts = { timeoutMs: 60_000, retries: 6, minIntervalMs: 1_000 };
   const [monthlyRes, yearlyRes] = await Promise.all([
     fetchWithRetry(`${URL_BASE}monthly`, opts),
     fetchWithRetry(`${URL_BASE}yearly`, opts).catch(() => null),
@@ -93,25 +97,34 @@ async function load(): Promise<void> {
   if (!monthlyRes.ok) throw new Error(`installed_power monthly HTTP ${monthlyRes.status}`);
   const monthlyJson = await monthlyRes.json();
   const yearlyJson = yearlyRes?.ok ? await yearlyRes.json() : null;
-  // Without the yearly series only wind, solar and biomass have values; kept briefly, then retried.
-  const ttl = yearlyJson != null ? FULL_TTL_MS : RETRY_TTL_MS;
-  g.netzlageInstalled = { at: Date.now() - (FULL_TTL_MS - ttl), points: combineInstalled(monthlyJson, yearlyJson) };
+  // Without the yearly series only wind, solar and biomass have values; kept, but refreshed soon.
+  g.netzlageInstalled = { at: Date.now(), complete: yearlyJson != null, points: combineInstalled(monthlyJson, yearlyJson) };
+}
+
+/** Downloads the installed capacity (shared by concurrent callers). On failure the old data stays. */
+export function refreshInstalledPower(): Promise<void> {
+  g.netzlageInstalledLoad ??= load()
+    .then(() => {
+      g.netzlageInstalledFail = undefined;
+    })
+    .catch((err) => {
+      g.netzlageInstalledFail = Date.now();
+      console.error("[installed]", (err as Error).message);
+    })
+    .finally(() => {
+      g.netzlageInstalledLoad = undefined;
+    });
+  return g.netzlageInstalledLoad;
 }
 
 export async function fetchInstalledPower(from: number, to: number): Promise<InstalledPoint[]> {
-  const stale = !g.netzlageInstalled || Date.now() - g.netzlageInstalled.at > FULL_TTL_MS;
-  const recentlyFailed = gi.netzlageInstalledFail != null && Date.now() - gi.netzlageInstalledFail < RETRY_TTL_MS;
+  const c = g.netzlageInstalled;
+  const recentlyFailed = g.netzlageInstalledFail != null && Date.now() - g.netzlageInstalledFail < RETRY_TTL_MS;
+  const stale = !c || Date.now() - c.at > (c.complete ? FULL_TTL_MS : RETRY_TTL_MS);
   if (stale && !recentlyFailed) {
-    // Concurrent requests share one download.
-    gi.netzlageInstalledLoad ??= load()
-      .catch((err) => {
-        gi.netzlageInstalledFail = Date.now();
-        if (!g.netzlageInstalled) throw err;
-      })
-      .finally(() => {
-        gi.netzlageInstalledLoad = undefined;
-      });
-    await gi.netzlageInstalledLoad;
+    const loading = refreshInstalledPower();
+    // With old data: answer at once and refresh in the background. Without: wait a little.
+    if (!c) await Promise.race([loading, new Promise((r) => setTimeout(r, REQUEST_WAIT_MS))]);
   }
   if (!g.netzlageInstalled) throw new Error("installed_power unavailable");
   return slice(g.netzlageInstalled.points, from, to);

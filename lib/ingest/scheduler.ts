@@ -1,5 +1,6 @@
 import cron, { type ScheduledTask } from "node-cron";
 import { startFrequencyPoller } from "@/lib/frequency/poller";
+import { refreshInstalledPower } from "@/lib/history/installed";
 import { rotateSalt } from "@/lib/stats/salt";
 import { getSetting, isSourceEnabled } from "@/lib/settings";
 import { fetchPrices } from "@/lib/sources/energy-charts";
@@ -50,6 +51,14 @@ const JOBS: JobDef[] = [
     run: async () => {
       if (!(await getSetting("entsoe.token"))) return;
       await ingestRange("entsoe", Date.now() - DAY, Date.now(), "recent");
+    },
+  },
+  {
+    name: "installed",
+    label: "Installierte Leistung (Energy-Charts, nur im Speicher)",
+    cron: "40 4 * * *",
+    run: async () => {
+      if (await isSourceEnabled("energycharts")) await refreshInstalledPower();
     },
   },
   {
@@ -117,6 +126,7 @@ export function startScheduler() {
   void tasks.get("recent")!.task.execute();
   void tasks.get("prices")!.task.execute();
   void tasks.get("entsoe")!.task.execute(); // returns at once without a token
+  void tasks.get("installed")!.task.execute(); // Historie reads it from memory only
   console.info(`[scheduler] started ${tasks.size} jobs`);
 }
 

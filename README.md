@@ -149,6 +149,7 @@ wo er aufgehört hat. Der komplette SMARD-Bestand seit 2015 dauert einige Stunde
 | Day-Ahead-Preise heute und morgen | stündlich (:07) |
 | ENTSO-E-Grenzflüsse, letzter Tag (nur mit Token) | alle 15 min (:05, :20, :35, :50) |
 | Revision der letzten 60 Tage (Upsert) | täglich 03:30 |
+| Installierte Leistung (nur im Speicher, auch beim Start) | täglich 04:40 |
 | Netzfrequenz (nur im Arbeitsspeicher) | alle 5 s |
 
 Eigenheiten der Quellen:
@@ -163,6 +164,8 @@ Eigenheiten der Quellen:
   Die Netzampel wird abgerufen und gespeichert, im Dashboard aber derzeit nicht angezeigt.
 - **Installierte Leistung:** Energy-Charts (`/v2/installed_power`) liefert Wind, PV und Biomasse monatlich, die
   übrigen Energieträger nur als Jahreswerte. Beides wird kombiniert (konventionelle Kraftwerke als Jahresendstand).
+  Abruf beim Start und täglich im Hintergrund mit geduldigen Wiederholungen (Energy-Charts begrenzt Anfragen je IP
+  mit HTTP 429). Seitenaufrufe lesen nur den Zwischenspeicher; schlägt ein Abruf fehl, bleiben die alten Werte.
 - **ENTSO-E:** optional, nur mit Token. Physikalische Grenzflüsse (A11) je Grenze in beide Richtungen,
   15-Minuten-Werte mit etwa 15–60 min Verzug. Mit der echten API geprüft: Für gemeinsame Viertelstunden
   weichen die Werte im Mittel um höchstens ca. 10 MW von Energy-Charts ab. Die jeweils neueste Viertelstunde
